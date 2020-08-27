@@ -1,0 +1,69 @@
+:root{
+    --main-color: #44486c;
+    --main-text-color: #d5e0e5;
+    --secondary-color: #869DA8;
+    --tertiary-color: #D9C6C6;
+    --accent-color: #C5E5D0;
+}
+
+body{
+    text-align: center;
+    background-color: var(--main-color);
+}
+
+header{
+    background-color: var(--main-color);
+    color: var(--main-text-color);
+    text-align: center;
+    padding: 2.5rem;
+}
+
+.App-body{
+    background-color: rgba(255, 255, 255, 0.1);
+    width: 80%;
+    margin: auto;
+    padding: 3rem;
+    border-radius: 20px;
+    position: relative;
+}
+
+.results{
+    background-color: rgba(255, 255, 255, 0.2);
+    /*display: inline-block;*/
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+    margin: 5rem;
+    border-radius: 20px;
+    vertical-align: top;
+}
+
+#carouselExampleIndicators{
+    width: 100%;
+}
+
+.carousel-item.active{
+    /*display: inline-block;*/
+    display: flex;
+    justify-content: center;
+}
+
+.song-tile{
+    display: inline-block;
+    width: 200px;
+    height: 200px;
+    background-color: var(--tertiary-color);
+    padding: 1rem;
+    margin: 1rem;
+    border-radius: 20px;
+}
+
+#account-toggle{
+    position: absolute;
+    right: 1rem;
+}
+
+#manual-add{
+    position: absolute;
+    left: 15rem;
+}

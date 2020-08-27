@@ -1,0 +1,10 @@
+{% extends "index.html" %}
+{% block account %}
+    <a class="btn btn-light" id="account-toggle" href="{{url_for('login')}}">Log In</a>
+{% endblock %}
+{% block body %}
+    <div class="app-description">
+        <h2>Nostalgia is an app that allows you to travel back in time with music. Log in to Spotify to travel! </h2>
+        <p>Further in depth description of what this app does</p>
+    </div>
+{% endblock %}
