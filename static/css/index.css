@@ -15,10 +15,20 @@ header{
     background-color: var(--main-color);
     color: var(--main-text-color);
     text-align: center;
-    padding: 2.5rem;
+    padding: 2rem 10rem;
+}
+
+a{
+    color: var(--main-text-color);
+}
+
+a:hover{
+    color: var(--main-text-color);
+    cursor: pointer;
 }
 
 .App-body{
+    display: inline-block;
     background-color: rgba(255, 255, 255, 0.1);
     width: 80%;
     margin: auto;
@@ -28,7 +38,7 @@ header{
 }
 
 .results{
-    background-color: rgba(255, 255, 255, 0.2);
+    /*background-color: rgba(255, 255, 255, 0.2);*/
     /*display: inline-block;*/
     display: flex;
     flex-wrap: wrap;
@@ -58,12 +68,31 @@ header{
     border-radius: 20px;
 }
 
-#account-toggle{
-    position: absolute;
-    right: 1rem;
+/*#account-toggle{*/
+/*    position: absolute;*/
+/*    right: 1rem;*/
+/*}*/
+
+.navbar-item{
+    margin: 1rem;
 }
 
 #manual-add{
-    position: absolute;
-    left: 15rem;
+    color: black;
+    border: black solid 2px;
+    border-radius: 1rem;
+    padding: 1rem;
+    width: 50%;
+    margin: auto;
+}
+
+.flat-button{
+    background-color: transparent;
+    border: none;
+}
+
+.flat-button:focus{
+    outline: none;
+    background-color: transparent;
+    border: none;
 }

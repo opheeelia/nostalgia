@@ -1,12 +1,7 @@
 from flask import Flask, redirect, request, render_template, url_for
-# import spotipy
-# from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
-import requests
 import os
-from db import Database
 from datetime import datetime
-# from config import Config
 from flask_sqlalchemy import SQLAlchemy
 from flask_dance.contrib.spotify import make_spotify_blueprint, spotify
 from flask_dance.consumer import oauth_authorized
@@ -15,8 +10,9 @@ from flask_login import UserMixin, current_user, login_user, logout_user, LoginM
 from flask_dance.consumer.storage.sqla import OAuthConsumerMixin, SQLAlchemyStorage
 from flask_dance.consumer import oauth_authorized
 from sqlalchemy.orm.exc import NoResultFound, UnmappedInstanceError
-# from db import sqldb
 from sqlalchemy import func
+from flask_script import Manager
+from flask_migrate import Migrate, MigrateCommand
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY')
@@ -24,6 +20,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sqldb.db'
 sqldb = SQLAlchemy(app)
 login_manager = LoginManager(app)
+migrate = Migrate(app, sqldb)
+manager = Manager(app)
+
+manager.add_command('db', MigrateCommand)
 
 load_dotenv()
 
@@ -61,6 +61,7 @@ class Song(sqldb.Model):
     name = sqldb.Column(sqldb.String)
     artist = sqldb.Column(sqldb.String)
     desc = sqldb.Column(sqldb.String(150))
+    saved = sqldb.Column(sqldb.Boolean)
     user_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey('user.id'))
 
 
@@ -90,6 +91,22 @@ def logout():
     logout_user()
     return redirect('/travel')
 
+
+@app.route('/search')
+def search():
+    query = request.args.get('query')
+    return spotify.get(f'/v1/search?q={query}&type=track&market=US').json()
+
+
+@app.route('/save')
+def save():
+    return {"status": 200}
+    spotify_id = request.args.get('id')
+    mark = sqldb.session.query(Song).with_parent(current_user).filter_by(spotify_id=spotify_id).one()
+    mark.saved = True
+    sqldb.session.commit()
+    return 1
+    # Song.update().where().values()
 
 @oauth_authorized.connect_via(blueprint)
 def logged_in(this_blueprint, token):
@@ -143,7 +160,7 @@ def travel():
         name = played['track']['name']
         song_id = played['track']['uri'].split(':')[2]
         artist = played['track']['artists'][0]['name'] if len(played['track']['artists']) <= 1 else \
-        played['track']['artists'][0]['name'] + " and others"
+            played['track']['artists'][0]['name'] + " and others"
         desc = ""
         # parse datetime ex. 2020-08-20T21:43:25.567Z
         year, month, *_ = date.split('-')
@@ -151,7 +168,7 @@ def travel():
         # declare period
         period = SEASONS[int(month)] + ' ' + year
         sqlsong = Song(name=name, artist=artist, desc=desc, song_user=current_user, date=date, spotify_id=song_id,
-                       period=period)
+                       period=period, saved=False)
         sqldb.session.add(sqlsong)
         sqldb.session.commit()
 
@@ -165,12 +182,22 @@ def travel():
         target_period = None
 
     # get songs in period
-    display_songs = sqldb.session.query(Song.name, Song.artist, func.count(Song.spotify_id)).with_parent(current_user) \
+    display_songs = sqldb.session.query(Song.name, Song.artist, func.count(Song.spotify_id), Song.spotify_id).with_parent(current_user) \
         .filter_by(period=target_period).group_by(Song.spotify_id).having(func.count(Song.spotify_id) > 1)\
         .order_by(func.count(Song.spotify_id).desc()).all()
 
-    return render_template('logged_in.html', songs=display_songs, current_year=current_year, carMax=3)
+    return render_template('travel.html', songs=display_songs, current_year=current_year, carMax=3)
 
+
+@app.route('/browse', methods=['GET', 'POST'])
+def browse():
+    if not spotify.authorized:
+        return render_template('logged_out.html')
+
+    periods = sqldb.session.query(Song.period, func.count(Song.period)).with_parent(current_user).filter_by(saved=True)\
+        .group_by(Song.period).all()
+
+    return render_template('browse.html', periods=periods)
 
 if __name__ == "__main__":
     sqldb.create_all()

@@ -15,3 +15,39 @@ function setDefaultSelected(obj, val) {
 
 setDefaultSelected(document.getElementById('season'), season);
 setDefaultSelected(document.getElementById('year'), year);
+
+function onSearch(){
+    const query = document.getElementById('song-search').value;
+    const parent = document.getElementById('search-results');
+    fetch(`/search?query=${query}`).then(res => res.json()).then(data => {
+        console.log(data);
+        const list = data['tracks']['items'];
+        list.forEach((suggestion)=> {
+            const textDiv = document.createElement('p');
+            textDiv.innerText = suggestion['name'] + ' by ' + suggestion['artists'][0]['name'];
+            parent.appendChild(textDiv);
+        });
+    });
+}
+
+function onSave(id) {
+    fetch(`/save?id=${id}`).then(res=>res.json()).then(data => {
+        //update it to be filled
+        console.log(id);
+        if (document.getElementById(`save-button-empty-${id}`).style.display !== "none"){
+            document.getElementById(`save-button-empty-${id}`).style.display = "none";
+        }else{
+            document.getElementById(`save-button-empty-${id}`).style.display = "inline";
+        }
+        if (document.getElementById(`save-button-filled-${id}`).style.display !== "none"){
+            console.log("something else");
+            document.getElementById(`save-button-filled-${id}`).style.display = "none";
+        }else{
+            console.log("right");
+            document.getElementById(`save-button-filled-${id}`).style.display = "inline";
+        }
+
+
+    });
+}
+

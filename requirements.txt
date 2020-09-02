@@ -4,3 +4,5 @@ flask-sqlalchemy
 flask-dance[sqla]
 sentry-sdk[flask]
 flask-login
+flask-script
+flask-migrate

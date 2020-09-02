@@ -1,0 +1,82 @@
+{% extends "logged_in.html" %}
+{% block content %}
+<div class="user-input row justify-content-center">
+    <div id="date-picker">
+        <form action={{url_for('travel')}} method="get">
+            <div class="form-row align-items-center">
+                <div class="col-auto my-1">
+                    <select class="custom-select mr-sm-2" name="season" id="season">
+                        <option selected disabled>Season...</option>
+                        <option value="Spring">Spring</option>
+                        <option value="Summer">Summer</option>
+                        <option value="Fall">Fall</option>
+                        <option value="Winter">Winter</option>
+                    </select>
+                </div>
+                <div class="col-auto my-1">
+                    <select class="custom-select mr-sm-2" name="year" id="year">
+                        <option selected disabled>Year...</option>
+                        {% for yr in range(current_year, 1989, -1) %}
+                        <option value={{yr}}>{{yr}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto my-1">
+                    <button type="submit" class="btn btn-light">Travel in time</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="results">
+    {% if songs|length == 0 %}
+    <p>No songs to display. Select a time period above!</p>
+    {% else %}
+    <div id="carouselExampleIndicators" class="carousel slide" data-ride="carousel">
+        <ol class="carousel-indicators">
+            {% for item in songs %}
+            {% if loop.first %}
+            <li data-target="#carouselExampleIndicators" data-slide-to="0" class="active"></li>
+            {% elif loop.index0 % carMax == 0 %}
+            <li data-target="#carouselExampleIndicators" data-slide-to="{{loop.index0}}"></li>
+            {% endif %}
+            {% endfor %}
+        </ol>
+        <div class="carousel-inner">
+            {% for item in songs %}
+            {% if loop.first %}
+            <div class="carousel-item active">
+                {% elif loop.index0 % carMax == 0 %}
+                <div class="carousel-item">
+                    {% endif %}
+                    <div class="song-tile">
+                        <button class="flat-button" type="button" id="save-button" onclick="onSave('{{item[3]}}')">
+                            <svg style="display:inline" id="save-button-empty-{{item[3]}}" width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-star" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                              <path fill-rule="evenodd" d="M2.866 14.85c-.078.444.36.791.746.593l4.39-2.256 4.389 2.256c.386.198.824-.149.746-.592l-.83-4.73 3.523-3.356c.329-.314.158-.888-.283-.95l-4.898-.696L8.465.792a.513.513 0 0 0-.927 0L5.354 5.12l-4.898.696c-.441.062-.612.636-.283.95l3.523 3.356-.83 4.73zm4.905-2.767l-3.686 1.894.694-3.957a.565.565 0 0 0-.163-.505L1.71 6.745l4.052-.576a.525.525 0 0 0 .393-.288l1.847-3.658 1.846 3.658a.525.525 0 0 0 .393.288l4.052.575-2.906 2.77a.564.564 0 0 0-.163.506l.694 3.957-3.686-1.894a.503.503 0 0 0-.461 0z"/>
+                            </svg>
+                            <svg style="display:none" id="save-button-filled-{{item[3]}}" width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-star-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.283.95l-3.523 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"/>
+                            </svg>
+                        </button>
+                        <p class="song-label"> {{item[0]}}</p>
+                        <p> by {{item[1]}}</p>
+                        <p> Played {{item[2]}} times</p>
+                    </div>
+                    {% if loop.index0 % carMax == (carMax - 1) or loop.last %}
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <a class="carousel-control-prev" href="#carouselExampleIndicators" role="button" data-slide="prev">
+                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                <span class="sr-only">Previous</span>
+            </a>
+            <a class="carousel-control-next" href="#carouselExampleIndicators" role="button" data-slide="next">
+                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                <span class="sr-only">Next</span>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,110 +1,17 @@
 {% extends "index.html" %}
-{% block account %}
-<a class="btn btn-light" id="account-toggle" href="{{url_for('logout')}}">Log Out</a>
+{% block nav %}
+<div class="row justify-content-between col">
+    <div class="row align-items-center">
+        <a class="navbar-item" href="/travel">Travel</a>
+        <a class="navbar-item" href="/browse">Browse</a>
+    </div>
+    <a class="btn btn-light" id="account-toggle" href="{{url_for('logout')}}">Log Out</a>
+</div>
+
 {% endblock %}
 {% block body %}
-<div class="user-input row justify-content-center">
-    <div id="manual-add">
-        <a type="button" data-toggle="modal" data-target="#addSongModal">
-            <svg width="2em" height="2em" viewBox="0 0 16 16" class="bi bi-plus-square" fill="currentColor"
-                 xmlns="http://www.w3.org/2000/svg">
-                <path fill-rule="evenodd"
-                      d="M8 3.5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5H4a.5.5 0 0 1 0-1h3.5V4a.5.5 0 0 1 .5-.5z"/>
-                <path fill-rule="evenodd" d="M7.5 8a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1H8.5V12a.5.5 0 0 1-1 0V8z"/>
-                <path fill-rule="evenodd"
-                      d="M14 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
-            </svg>
-        </a>
-        <div class="modal fade" id="addSongModal" tabindex="-1" aria-labelledby="exampleModalLabel"
-             aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="addSongModalLabel">Add a nostalgic song</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        Search for song on Spotify and a time period it reminds you of.
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-light">Save changes</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div id="date-picker">
-        <form action={{url_for('travel')}} method="get">
-            <div class="form-row align-items-center">
-                <div class="col-auto my-1">
-                    <select class="custom-select mr-sm-2" name="season" id="season">
-                        <option selected disabled>Season...</option>
-                        <option value="Spring">Spring</option>
-                        <option value="Summer">Summer</option>
-                        <option value="Fall">Fall</option>
-                        <option value="Winter">Winter</option>
-                    </select>
-                </div>
-                <div class="col-auto my-1">
-                    <select class="custom-select mr-sm-2" name="year" id="year">
-                        <option selected disabled>Year...</option>
-                        {% for yr in range(current_year, 1989, -1) %}
-                        <option value={{yr}}>{{yr}}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-auto my-1">
-                    <button type="submit" class="btn btn-light">Travel in time</button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
-<div class="results">
-    {% if songs|length == 0 %}
-    <p>No songs to display. Select a time period above!</p>
-    {% else %}
-    <div id="carouselExampleIndicators" class="carousel slide" data-ride="carousel">
-        <ol class="carousel-indicators">
-            {% for item in songs %}
-            {% if loop.first %}
-            <li data-target="#carouselExampleIndicators" data-slide-to="0" class="active"></li>
-            {% elif loop.index0 % carMax == 0 %}
-            <li data-target="#carouselExampleIndicators" data-slide-to="{{loop.index0}}"></li>
-            {% endif %}
-            {% endfor %}
-        </ol>
-        <div class="carousel-inner">
-            {% for item in songs %}
-            {% if loop.first %}
-            <div class="carousel-item active">
-            {% elif loop.index0 % carMax == 0 %}
-            <div class="carousel-item">
-            {% endif %}
-                <div class="song-tile">
-                    <p class="song-label"> {{item[0]}}</p>
-                    <p> by {{item[1]}}</p>
-                    <p> Played {{item[2]}} times</p>
-                </div>
-            {% if loop.index0 % carMax == (carMax - 1) or loop.last %}
-            </div>
-            {% endif %}
-            {% endfor %}
-        </div>
-        <a class="carousel-control-prev" href="#carouselExampleIndicators" role="button" data-slide="prev">
-            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-            <span class="sr-only">Previous</span>
-        </a>
-        <a class="carousel-control-next" href="#carouselExampleIndicators" role="button" data-slide="next">
-            <span class="carousel-control-next-icon" aria-hidden="true"></span>
-            <span class="sr-only">Next</span>
-        </a>
-    </div>
-    {% endif %}
-</div>
+{% block content %}
+{% endblock %}
 {% endblock %}
 
 {% block scripts %}
