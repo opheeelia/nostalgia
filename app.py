@@ -193,8 +193,6 @@ def travel():
         .with_parent(current_user).filter_by(period=target_period).group_by(Song.spotify_id)\
         .having(func.count(Song.spotify_id) > 1).order_by(func.count(Song.saved).desc(), func.count(Song.spotify_id).desc()).all()
 
-    print(display_songs)
-
     return render_template('travel.html', songs=display_songs, current_year=current_year, carMax=3)
 
 
