@@ -100,13 +100,20 @@ def search():
 
 @app.route('/save')
 def save():
-    return {"status": 200}
     spotify_id = request.args.get('id')
-    mark = sqldb.session.query(Song).with_parent(current_user).filter_by(spotify_id=spotify_id).one()
-    mark.saved = True
+    mark = sqldb.session.query(Song).with_parent(current_user).filter_by(spotify_id=spotify_id)\
+        .order_by(Song.saved.desc()).first()
+    mark.saved = True if mark.saved is None else None
     sqldb.session.commit()
-    return 1
-    # Song.update().where().values()
+    return {"status": 200}
+
+
+@app.route('/reset')
+def reset():
+    sqldb.session.query(Song).with_parent(current_user).filter(Song.saved is not None).update({"saved": None})
+    sqldb.session.commit()
+    return "done"
+
 
 @oauth_authorized.connect_via(blueprint)
 def logged_in(this_blueprint, token):
@@ -168,7 +175,7 @@ def travel():
         # declare period
         period = SEASONS[int(month)] + ' ' + year
         sqlsong = Song(name=name, artist=artist, desc=desc, song_user=current_user, date=date, spotify_id=song_id,
-                       period=period, saved=False)
+                       period=period, saved=None)
         sqldb.session.add(sqlsong)
         sqldb.session.commit()
 
@@ -182,9 +189,9 @@ def travel():
         target_period = None
 
     # get songs in period
-    display_songs = sqldb.session.query(Song.name, Song.artist, func.count(Song.spotify_id), Song.spotify_id).with_parent(current_user) \
-        .filter_by(period=target_period).group_by(Song.spotify_id).having(func.count(Song.spotify_id) > 1)\
-        .order_by(func.count(Song.spotify_id).desc()).all()
+    display_songs = sqldb.session.query(Song.name, Song.artist, func.count(Song.spotify_id), Song.spotify_id, func.count(Song.saved))\
+        .with_parent(current_user).filter_by(period=target_period).group_by(Song.spotify_id)\
+        .having(func.count(Song.spotify_id) > 1).order_by(func.count(Song.spotify_id).desc()).all()
 
     return render_template('travel.html', songs=display_songs, current_year=current_year, carMax=3)
 
@@ -194,10 +201,11 @@ def browse():
     if not spotify.authorized:
         return render_template('logged_out.html')
 
-    periods = sqldb.session.query(Song.period, func.count(Song.period)).with_parent(current_user).filter_by(saved=True)\
-        .group_by(Song.period).all()
+    songs = sqldb.session.query(Song.period, Song.name, Song.artist).with_parent(current_user)\
+        .filter_by(saved=True).order_by(Song.period.desc()).distinct().all()
 
-    return render_template('browse.html', periods=periods)
+    return render_template('browse.html', songs=songs)
+
 
 if __name__ == "__main__":
     sqldb.create_all()

@@ -33,21 +33,16 @@ function onSearch(){
 function onSave(id) {
     fetch(`/save?id=${id}`).then(res=>res.json()).then(data => {
         //update it to be filled
-        console.log(id);
         if (document.getElementById(`save-button-empty-${id}`).style.display !== "none"){
             document.getElementById(`save-button-empty-${id}`).style.display = "none";
         }else{
             document.getElementById(`save-button-empty-${id}`).style.display = "inline";
         }
         if (document.getElementById(`save-button-filled-${id}`).style.display !== "none"){
-            console.log("something else");
             document.getElementById(`save-button-filled-${id}`).style.display = "none";
         }else{
-            console.log("right");
             document.getElementById(`save-button-filled-${id}`).style.display = "inline";
         }
-
-
     });
 }
 
