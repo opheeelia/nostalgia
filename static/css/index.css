@@ -97,6 +97,12 @@ a:hover{
     border: none;
 }
 
+.styled-button{
+    background-color: transparent;
+    border: var(--accent-color) solid 1px;
+    border-radius: 1rem;
+}
+
 .card{
     background-color: var(--main-color);
 }

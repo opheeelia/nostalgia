@@ -22,17 +22,42 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <p>Search for song on Spotify and indicate the time period it reminds you of.</p>
-                    <div class="input-group mb-3">
-                        <input type="text" class="form-control" placeholder="Search a song..."
-                               aria-label="Search a song..." aria-describedby="button-addon2" id="song-search">
-                        <div class="input-group-append">
-                            <button class="btn btn-outline-secondary" type="button" id="button-addon2"
-                                    onclick="onSearch()">Button
-                            </button>
+                    <form action={{url_for('addSong')}} method="post">
+                        <p>Search for song on Spotify and indicate the time period it reminds you of.</p>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="Search a song..."
+                                   aria-label="Search a song..." aria-describedby="button-addon2" id="song-search">
+                            <input type="hidden" id="song-name" name="name"/>
+                            <input type="hidden" id="song-artist" name="artist"/>
+                            <input type="hidden" id="song-id" name="id"/>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" id="button-addon2"
+                                        onclick="onSearch()">Search
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <div id="search-results"></div>
+                        <div id="search-results"></div>
+                        <div class="form-row align-items-center justify-content-center" id="period-picker" style="display:none">
+                            <div class="col-auto my-1">
+                                <select class="custom-select mr-sm-2" name="season" id="season">
+                                    <option selected disabled>Season...</option>
+                                    <option value="Spring">Spring</option>
+                                    <option value="Summer">Summer</option>
+                                    <option value="Fall">Fall</option>
+                                    <option value="Winter">Winter</option>
+                                </select>
+                            </div>
+                            <div class="col-auto my-1">
+                                <select class="custom-select mr-sm-2" name="year" id="year">
+                                    <option selected disabled>Year...</option>
+                                    {% for yr in range(current_year, 1989, -1) %}
+                                    <option value={{yr}}>{{yr}}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" type="submit">Add song</button>
+                    </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>

@@ -92,10 +92,14 @@ def logout():
     return redirect('/travel')
 
 
-@app.route('/search')
+@app.route('/search', methods=['GET'])
 def search():
     query = request.args.get('query')
-    return spotify.get(f'/v1/search?q={query}&type=track&market=US').json()
+    try:
+        resp = spotify.get(f'/v1/search?q={query}&type=track&market=US').json()
+    except TokenExpiredError:
+        return redirect(url_for('spotify.login'))
+    return resp
 
 
 @app.route('/save')
@@ -108,7 +112,22 @@ def save():
     return {"status": 200}
 
 
-@app.route('/reset')
+@app.route('/addSong', methods=['POST'])
+def addSong():
+    spotify_id = request.form.get('id')
+    name = request.form.get('name')
+    artist = request.form.get('artist')
+    desc = request.form.get('desc')
+    period = request.form.get('season') + " " + request.form.get('year')
+
+    sqlsong = Song(name=name, artist=artist, desc=desc, song_user=current_user, spotify_id=spotify_id,
+                   period=period, saved=True)
+    sqldb.session.add(sqlsong)
+    sqldb.session.commit()
+    return redirect('/browse')
+
+
+@app.route('/resetSaved')
 def reset():
     sqldb.session.query(Song).with_parent(current_user).filter(Song.saved is not None).update({"saved": None})
     sqldb.session.commit()
@@ -203,8 +222,9 @@ def browse():
 
     songs = sqldb.session.query(Song.period, Song.name, Song.artist).with_parent(current_user)\
         .filter_by(saved=True).order_by(Song.period.desc()).distinct().all()
+    current_year = datetime.now().year
 
-    return render_template('browse.html', songs=songs)
+    return render_template('browse.html', songs=songs, current_year=current_year)
 
 
 if __name__ == "__main__":

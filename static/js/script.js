@@ -23,9 +23,32 @@ function onSearch(){
         console.log(data);
         const list = data['tracks']['items'];
         list.forEach((suggestion)=> {
+            const songDiv = document.createElement('div');
+            songDiv.style.display = "flex";
+            songDiv.style.alignItems = "center";
+            songDiv.style.justifyContent = "center";
             const textDiv = document.createElement('p');
             textDiv.innerText = suggestion['name'] + ' by ' + suggestion['artists'][0]['name'];
-            parent.appendChild(textDiv);
+            textDiv.style.margin = "auto 1rem";
+            const addButton = document.createElement('button');
+            addButton.className = "styled-button";
+            addButton.type = "button";
+            addButton.innerText = "+";
+            addButton.onclick = () => {
+                // make time period show up and search results disappear
+                document.getElementById('song-search').value = suggestion['name'] + ' by ' + suggestion['artists'][0]['name'];
+                document.getElementById('song-name').value = suggestion['name'];
+                document.getElementById('song-artist').value = suggestion['artists'][0]['name'];
+                document.getElementById('song-id').value = suggestion['id'];
+                document.getElementById('search-results').style.display = "none";
+                document.getElementById('period-picker').style.display = "block";
+                console.log(suggestion['id']);
+            };
+
+
+            songDiv.appendChild(addButton);
+            songDiv.appendChild(textDiv);
+            parent.appendChild(songDiv);
         });
     });
 }
