@@ -111,3 +111,7 @@ a:hover{
     color: var(--main-text-color);
     background-color: rgba(0,0,0,0.1);
 }
+
+.no-float{
+    float: none;
+}

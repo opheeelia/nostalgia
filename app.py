@@ -220,7 +220,7 @@ def browse():
     if not spotify.authorized:
         return render_template('logged_out.html')
 
-    songs = sqldb.session.query(Song.period, Song.name, Song.artist).with_parent(current_user)\
+    songs = sqldb.session.query(Song.period, Song.name, Song.artist, Song.spotify_id).with_parent(current_user)\
         .filter_by(saved=True).order_by(Song.period.desc()).distinct().all()
     current_year = datetime.now().year
 

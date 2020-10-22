@@ -55,16 +55,17 @@ function onSearch(){
 
 function onSave(id) {
     fetch(`/save?id=${id}`).then(res=>res.json()).then(data => {
+        const idsToScan = [`save-button-empty-${id}`, `save-button-filled-${id}`, `saved-tile-${id}`];
         //update it to be filled
-        if (document.getElementById(`save-button-empty-${id}`).style.display !== "none"){
-            document.getElementById(`save-button-empty-${id}`).style.display = "none";
-        }else{
-            document.getElementById(`save-button-empty-${id}`).style.display = "inline";
-        }
-        if (document.getElementById(`save-button-filled-${id}`).style.display !== "none"){
-            document.getElementById(`save-button-filled-${id}`).style.display = "none";
-        }else{
-            document.getElementById(`save-button-filled-${id}`).style.display = "inline";
+        for (const idName of idsToScan) {
+            console.log(idName);
+            if (document.getElementById(idName)){
+                if (document.getElementById(idName).style.display !== "none"){
+                    document.getElementById(idName).style.display = "none";
+                }else{
+                    document.getElementById(idName).style.display = "inline";
+                }
+            }
         }
     });
 }

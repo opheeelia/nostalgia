@@ -26,7 +26,8 @@
                         <p>Search for song on Spotify and indicate the time period it reminds you of.</p>
                         <div class="input-group mb-3">
                             <input type="text" class="form-control" placeholder="Search a song..."
-                                   aria-label="Search a song..." aria-describedby="button-addon2" id="song-search">
+                                   aria-label="Search a song..." aria-describedby="button-addon2" id="song-search"
+                                   onkeydown="return event.key != 'Enter';"><!--TODO: temporary fix-->
                             <input type="hidden" id="song-name" name="name"/>
                             <input type="hidden" id="song-artist" name="artist"/>
                             <input type="hidden" id="song-id" name="id"/>
@@ -79,9 +80,12 @@
 
             <div id="collapse{{loop.index}}" class="collapse show" data-parent="#accordion">
         {% endif %}
-        <div class="song-tile">
+        <div class="song-tile" id="saved-tile-{{song[3]}}">
             <p class="song-label"> {{song[1]}}</p>
             <p> by {{song[2]}}</p>
+            <button type="button" class="close no-float" aria-label="Unsave song" onclick="onSave('{{song[3]}}')">
+                <span aria-hidden="true">&times;</span>
+            </button>
         </div>
         {% if loop.last or song[0] != loop.nextitem[0] %}
             </div>
