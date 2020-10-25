@@ -41,6 +41,8 @@ SEASONS = {1: 'Winter',
            12: 'Winter',
            }
 
+REV_SEASONS = {'Spring': 3, 'Summer': 6, 'Fall': 9, 'Winter': 12}
+
 
 class User(UserMixin, sqldb.Model):
     id = sqldb.Column(sqldb.Integer, primary_key=True)
@@ -96,7 +98,7 @@ def logout():
 def search():
     query = request.args.get('query')
     try:
-        resp = spotify.get(f'/v1/search?q={query}&type=track&market=US').json()
+        resp = spotify.get(f'/v1/search?q={query}&type=track&market=US', headers={'Access-Control-Allow-Origin': '*'}).json()
     except TokenExpiredError:
         return redirect(url_for('spotify.login'))
     return resp
@@ -119,9 +121,10 @@ def addSong():
     artist = request.form.get('artist')
     desc = request.form.get('desc')
     period = request.form.get('season') + " " + request.form.get('year')
+    date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(request.form.get('year'), REV_SEASONS[request.form.get('season')], 1) # 2020-08-26T00:25:10.291Z
 
     sqlsong = Song(name=name, artist=artist, desc=desc, song_user=current_user, spotify_id=spotify_id,
-                   period=period, saved=True)
+                   period=period, date=date, saved=True)
     sqldb.session.add(sqlsong)
     sqldb.session.commit()
     return redirect('/browse')
@@ -220,8 +223,8 @@ def browse():
     if not spotify.authorized:
         return render_template('logged_out.html')
 
-    songs = sqldb.session.query(Song.period, Song.name, Song.artist, Song.spotify_id).with_parent(current_user)\
-        .filter_by(saved=True).order_by(Song.period.desc()).distinct().all()
+    songs = sqldb.session.query(Song.period, Song.name, Song.artist, Song.spotify_id, Song.desc).with_parent(current_user)\
+        .filter_by(saved=True).order_by(Song.date.desc()).distinct().all()
     current_year = datetime.now().year
 
     return render_template('browse.html', songs=songs, current_year=current_year)

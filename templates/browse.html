@@ -38,31 +38,37 @@
                             </div>
                         </div>
                         <div id="search-results"></div>
-                        <div class="form-row align-items-center justify-content-center" id="period-picker" style="display:none">
-                            <div class="col-auto my-1">
-                                <select class="custom-select mr-sm-2" name="season" id="season">
-                                    <option selected disabled>Season...</option>
-                                    <option value="Spring">Spring</option>
-                                    <option value="Summer">Summer</option>
-                                    <option value="Fall">Fall</option>
-                                    <option value="Winter">Winter</option>
-                                </select>
+                        <div id="period-picker" style="display:none">
+                            <div class="form-group row">
+                                <div class="form-group col">
+                                    <select class="custom-select mr-sm-2" name="season" id="season">
+                                        <option selected disabled>Season...</option>
+                                        <option value="Spring">Spring</option>
+                                        <option value="Summer">Summer</option>
+                                        <option value="Fall">Fall</option>
+                                        <option value="Winter">Winter</option>
+                                    </select>
+                                </div>
+                                <div class="form-group col">
+                                    <select class="custom-select mr-sm-2" name="year" id="year">
+                                        <option selected disabled>Year...</option>
+                                        {% for yr in range(current_year, 1989, -1) %}
+                                        <option value={{yr}}>{{yr}}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                             </div>
-                            <div class="col-auto my-1">
-                                <select class="custom-select mr-sm-2" name="year" id="year">
-                                    <option selected disabled>Year...</option>
-                                    {% for yr in range(current_year, 1989, -1) %}
-                                    <option value={{yr}}>{{yr}}</option>
-                                    {% endfor %}
-                                </select>
+                            <div class="form-group row">
+                                <div class="form-group col">
+                                    <label for="description">Description of the memory (optional)</label>
+                                    <textarea class="form-control" id="description" name="desc" rows="2"></textarea>
+                                </div>
                             </div>
                         </div>
                         <button class="btn btn-primary" type="submit">Add song</button>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                </div>
+                <div class="modal-footer"></div>
             </div>
         </div>
     </div>
@@ -83,6 +89,7 @@
         <div class="song-tile" id="saved-tile-{{song[3]}}">
             <p class="song-label"> {{song[1]}}</p>
             <p> by {{song[2]}}</p>
+            <p> {{song[4]}}</p>
             <button type="button" class="close no-float" aria-label="Unsave song" onclick="onSave('{{song[3]}}')">
                 <span aria-hidden="true">&times;</span>
             </button>

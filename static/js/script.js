@@ -21,6 +21,8 @@ function onSearch(){
     const parent = document.getElementById('search-results');
     fetch(`/search?query=${query}`).then(res => res.json()).then(data => {
         console.log(data);
+        parent.innerText = ""; //clear search
+        parent.style.display = "block";
         const list = data['tracks']['items'];
         list.forEach((suggestion)=> {
             const songDiv = document.createElement('div');
@@ -42,9 +44,7 @@ function onSearch(){
                 document.getElementById('song-id').value = suggestion['id'];
                 document.getElementById('search-results').style.display = "none";
                 document.getElementById('period-picker').style.display = "block";
-                console.log(suggestion['id']);
             };
-
 
             songDiv.appendChild(addButton);
             songDiv.appendChild(textDiv);
@@ -58,7 +58,6 @@ function onSave(id) {
         const idsToScan = [`save-button-empty-${id}`, `save-button-filled-${id}`, `saved-tile-${id}`];
         //update it to be filled
         for (const idName of idsToScan) {
-            console.log(idName);
             if (document.getElementById(idName)){
                 if (document.getElementById(idName).style.display !== "none"){
                     document.getElementById(idName).style.display = "none";
