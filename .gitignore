@@ -2,6 +2,7 @@ venv/
 .idea/
 __pycache__/
 migrations/
+.vscode/
 .env
 sqldb.db
 .flaskenv

@@ -2,30 +2,37 @@ from flask import Flask, redirect, request, render_template, url_for
 from dotenv import load_dotenv
 import os
 from datetime import datetime
-from flask_sqlalchemy import SQLAlchemy
 from flask_dance.contrib.spotify import make_spotify_blueprint, spotify
-from flask_dance.consumer import oauth_authorized
 from oauthlib.oauth2.rfc6749.errors import TokenExpiredError
-from flask_login import UserMixin, current_user, login_user, logout_user, LoginManager, login_required
-from flask_dance.consumer.storage.sqla import OAuthConsumerMixin, SQLAlchemyStorage
+from flask_login import current_user, login_user, logout_user, LoginManager, login_required
 from flask_dance.consumer import oauth_authorized
+from flask_dance.consumer.storage.sqla import SQLAlchemyStorage
 from sqlalchemy.orm.exc import NoResultFound, UnmappedInstanceError
-from sqlalchemy import func
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
+from db import sqldb, Song, User, OAuth, Database
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sqldb.db'
-sqldb = SQLAlchemy(app)
+
 login_manager = LoginManager(app)
+dbInterface = Database(current_user)
 migrate = Migrate(app, sqldb)
 manager = Manager(app)
-
 manager.add_command('db', MigrateCommand)
 
 load_dotenv()
+
+scope = "user-read-recently-played"
+blueprint = make_spotify_blueprint(client_id=os.environ.get('SPOTIPY_CLIENT_ID'),
+                                   client_secret=os.environ.get('SPOTIPY_CLIENT_SECRET'),
+                                   scope=["user-read-recently-played", "user-read-email"],
+                                   redirect_url="/travel",
+                                   storage=SQLAlchemyStorage(OAuth, sqldb.session, user=current_user,
+                                                             user_required=False))
+app.register_blueprint(blueprint=blueprint, url_prefix='/log_in')
 
 SEASONS = {1: 'Winter',
            2: 'Winter',
@@ -43,43 +50,12 @@ SEASONS = {1: 'Winter',
 
 REV_SEASONS = {'Spring': 3, 'Summer': 6, 'Fall': 9, 'Winter': 12}
 
-
-class User(UserMixin, sqldb.Model):
-    id = sqldb.Column(sqldb.Integer, primary_key=True)
-    username = sqldb.Column(sqldb.String, unique=True)
-    songs = sqldb.relationship('Song', backref='song_user')
-
-
-class OAuth(OAuthConsumerMixin, sqldb.Model):
-    user_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey(User.id))
-    user = sqldb.relationship(User)
-
-
-class Song(sqldb.Model):
-    id = sqldb.Column(sqldb.Integer, primary_key=True)
-    spotify_id = sqldb.Column(sqldb.String)
-    date = sqldb.Column(sqldb.String)
-    period = sqldb.Column(sqldb.String(50))
-    name = sqldb.Column(sqldb.String)
-    artist = sqldb.Column(sqldb.String)
-    desc = sqldb.Column(sqldb.String(150))
-    saved = sqldb.Column(sqldb.Boolean)
-    user_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey('user.id'))
+### OAUTH / LOG IN ###
 
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-
-
-scope = "user-read-recently-played"
-blueprint = make_spotify_blueprint(client_id=os.environ.get('SPOTIPY_CLIENT_ID'),
-                                   client_secret=os.environ.get('SPOTIPY_CLIENT_SECRET'),
-                                   scope=["user-read-recently-played", "user-read-email"],
-                                   redirect_url="/travel",
-                                   storage=SQLAlchemyStorage(OAuth, sqldb.session, user=current_user,
-                                                             user_required=False))
-app.register_blueprint(blueprint=blueprint, url_prefix='/log_in')
 
 
 @app.route('/login')
@@ -92,49 +68,6 @@ def login():
 def logout():
     logout_user()
     return redirect('/travel')
-
-
-@app.route('/search', methods=['GET'])
-def search():
-    query = request.args.get('query')
-    try:
-        resp = spotify.get(f'/v1/search?q={query}&type=track&market=US', headers={'Access-Control-Allow-Origin': '*'}).json()
-    except TokenExpiredError:
-        return redirect(url_for('spotify.login'))
-    return resp
-
-
-@app.route('/save')
-def save():
-    spotify_id = request.args.get('id')
-    mark = sqldb.session.query(Song).with_parent(current_user).filter_by(spotify_id=spotify_id)\
-        .order_by(Song.saved.desc()).first()
-    mark.saved = True if mark.saved is None else None
-    sqldb.session.commit()
-    return {"status": 200}
-
-
-@app.route('/addSong', methods=['POST'])
-def addSong():
-    spotify_id = request.form.get('id')
-    name = request.form.get('name')
-    artist = request.form.get('artist')
-    desc = request.form.get('desc')
-    period = request.form.get('season') + " " + request.form.get('year')
-    date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(request.form.get('year'), REV_SEASONS[request.form.get('season')], 1) # 2020-08-26T00:25:10.291Z
-
-    sqlsong = Song(name=name, artist=artist, desc=desc, song_user=current_user, spotify_id=spotify_id,
-                   period=period, date=date, saved=True)
-    sqldb.session.add(sqlsong)
-    sqldb.session.commit()
-    return redirect('/browse')
-
-
-@app.route('/resetSaved')
-def reset():
-    sqldb.session.query(Song).with_parent(current_user).filter(Song.saved is not None).update({"saved": None})
-    sqldb.session.commit()
-    return "done"
 
 
 @oauth_authorized.connect_via(blueprint)
@@ -155,6 +88,57 @@ def logged_in(this_blueprint, token):
         login_user(user)
 
 
+### SPOTIFY API ###
+
+
+@app.route('/search', methods=['GET'])
+def search():
+    query = request.args.get('query')
+    try:
+        resp = spotify.get(f'/v1/search?q={query}&type=track&market=US', headers={'Access-Control-Allow-Origin': '*'}).json()
+    except TokenExpiredError:
+        return redirect(url_for('spotify.login'))
+    return resp
+
+
+@app.route('/save')
+def save():
+    spotify_id = request.args.get('id')
+    dbInterface.save_song(spotify_id)
+    return {"status": 200}
+
+
+@app.route('/add_song', methods=['POST'])
+def add_song():
+    spotify_id = request.form.get('id')
+    name = request.form.get('name')
+    artist = request.form.get('artist')
+    desc = request.form.get('desc')
+    period = request.form.get('season') + " " + request.form.get('year')
+    date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(request.form.get('year'), REV_SEASONS[request.form.get('season')], 1) # 2020-08-26T00:25:10.291Z
+
+    dbInterface.add_song(name=name, artist=artist, desc=desc, period=period, date=date, song_id=spotify_id)
+    return redirect('/browse')
+
+
+@app.route('/resetSaved')
+def reset():
+    dbInterface.reset_saved(current_user)
+    return "done"
+
+
+# def topSongs():
+#     time_periods = ['short_term', 'medium_term', 'long_term']
+#     try:
+#         top_songs = {}
+#         for term in time_periods:
+#             resp = spotify.get(f'/v1/me/top/tracks?time_range={term}').json()
+#             for song in resp['items']:
+#                 name = song['name']
+#                 song_id = song['id']
+#                 artist = song['artists'][0]['name'] if len(song['artists']) <= 1 else song['artists'][0]['name'] + " and others"
+#             # top_songs[term] =
+
 @app.route('/travel', methods=['GET', 'POST'])
 def travel():
 
@@ -164,7 +148,7 @@ def travel():
     # get year
     current_year = datetime.now().year
     try:
-        most_recent = sqldb.session.query(Song).with_parent(current_user).order_by(Song.date.desc()).first().date
+        most_recent = dbInterface.get_most_recent()
         # timestamp = datetime.strptime(most_recent, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp() use when API beta is over and fixed
     except (UnmappedInstanceError, AttributeError):
         most_recent = '0'
@@ -176,8 +160,6 @@ def travel():
 
     except TokenExpiredError:
         return redirect(url_for('spotify.login'))
-
-    print(current_user.username)
 
     # get the most recent songs to update db
     for played in resp['items']:
@@ -196,10 +178,7 @@ def travel():
 
         # declare period
         period = SEASONS[int(month)] + ' ' + year
-        sqlsong = Song(name=name, artist=artist, desc=desc, song_user=current_user, date=date, spotify_id=song_id,
-                       period=period, saved=None)
-        sqldb.session.add(sqlsong)
-        sqldb.session.commit()
+        dbInterface.add_song(name=name, song_id=song_id, artist=artist, desc=desc, period=period, date=date)
 
     # get the songs to display
     season = request.args.get('season')
@@ -211,11 +190,9 @@ def travel():
         target_period = None
 
     # get songs in period
-    display_songs = sqldb.session.query(Song.name, Song.artist, func.count(Song.spotify_id), Song.spotify_id, func.count(Song.saved))\
-        .with_parent(current_user).filter_by(period=target_period).group_by(Song.spotify_id)\
-        .having(func.count(Song.spotify_id) > 1).order_by(func.count(Song.saved).desc(), func.count(Song.spotify_id).desc()).all()
+    songs = dbInterface.get_period_songs(target_period)
 
-    return render_template('travel.html', songs=display_songs, current_year=current_year, carMax=3)
+    return render_template('travel.html', songs=songs, current_year=current_year, carMax=3)
 
 
 @app.route('/browse', methods=['GET', 'POST'])
@@ -223,13 +200,14 @@ def browse():
     if not spotify.authorized:
         return render_template('logged_out.html')
 
-    songs = sqldb.session.query(Song.period, Song.name, Song.artist, Song.spotify_id, Song.desc).with_parent(current_user)\
-        .filter_by(saved=True).order_by(Song.date.desc()).distinct().all()
+    songs = dbInterface.get_saved_songs()
     current_year = datetime.now().year
 
     return render_template('browse.html', songs=songs, current_year=current_year)
 
 
 if __name__ == "__main__":
-    sqldb.create_all()
+    sqldb.init_app(app)
+    with app.app_context():
+        sqldb.create_all()
     app.run(debug=True)
