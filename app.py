@@ -10,16 +10,16 @@ from flask_dance.consumer.storage.sqla import SQLAlchemyStorage
 from sqlalchemy.orm.exc import NoResultFound, UnmappedInstanceError
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
-from db import sqldb, Song, User, OAuth, Database
+from db import sqldb, User, OAuth, Database
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sqldb.db'
-
+sqldb.init_app(app)
 login_manager = LoginManager(app)
 dbInterface = Database(current_user)
-migrate = Migrate(app, sqldb)
+migrate = Migrate(app, sqldb, render_as_batch=True)
 manager = Manager(app)
 manager.add_command('db', MigrateCommand)
 
@@ -105,7 +105,7 @@ def search():
 def save():
     spotify_id = request.args.get('id')
     dbInterface.save_song(spotify_id)
-    return {"status": 200}
+    return {"status": 200} #TODO: look into actual status responses
 
 
 @app.route('/add_song', methods=['POST'])
@@ -117,7 +117,7 @@ def add_song():
     period = request.form.get('season') + " " + request.form.get('year')
     date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(request.form.get('year'), REV_SEASONS[request.form.get('season')], 1) # 2020-08-26T00:25:10.291Z
 
-    dbInterface.add_song(name=name, artist=artist, desc=desc, period=period, date=date, song_id=spotify_id)
+    dbInterface.add_song(name=name, artist=artist, desc=desc, period=period, date=date, song_id=spotify_id, saved=True)
     return redirect('/browse')
 
 
@@ -192,6 +192,7 @@ def travel():
     # get songs in period
     songs = dbInterface.get_period_songs(target_period)
 
+    print(f'{songs}')
     return render_template('travel.html', songs=songs, current_year=current_year, carMax=3)
 
 
@@ -208,6 +209,7 @@ def browse():
 
 if __name__ == "__main__":
     sqldb.init_app(app)
+    migrate.init_app(app, sqldb)
     with app.app_context():
         sqldb.create_all()
     app.run(debug=True)

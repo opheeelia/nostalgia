@@ -1,32 +1,45 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func
+from sqlalchemy import func, MetaData
 from flask_dance.consumer.storage.sqla import OAuthConsumerMixin
 from flask_login import UserMixin
 
-sqldb = SQLAlchemy()
+convention = {
+    "ix": 'ix_%(column_0_label)s',
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s"
+}
+sqldb = SQLAlchemy(metadata=MetaData(naming_convention=convention))
 
 
 class User(UserMixin, sqldb.Model):
     id = sqldb.Column(sqldb.Integer, primary_key=True)
     username = sqldb.Column(sqldb.String, unique=True)
-    songs = sqldb.relationship('Song', backref='song_user')
+    songs = sqldb.relationship('UserSong', backref='user')
 
 
-class OAuth(OAuthConsumerMixin, sqldb.Model):
-    user_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey(User.id))
-    user = sqldb.relationship(User)
+class UserSong(sqldb.Model):
+    id = sqldb.Column(sqldb.Integer, primary_key=True)
+    desc = sqldb.Column(sqldb.String(150))
+    saved = sqldb.Column(sqldb.Boolean)
+    date = sqldb.Column(sqldb.String)
+    period = sqldb.Column(sqldb.String(50))
+    song_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey('song.id'))
+    user_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey('user.id'))
 
 
 class Song(sqldb.Model):
     id = sqldb.Column(sqldb.Integer, primary_key=True)
     spotify_id = sqldb.Column(sqldb.String)
-    date = sqldb.Column(sqldb.String)
-    period = sqldb.Column(sqldb.String(50))
     name = sqldb.Column(sqldb.String)
     artist = sqldb.Column(sqldb.String)
-    desc = sqldb.Column(sqldb.String(150))
-    saved = sqldb.Column(sqldb.Boolean)
-    user_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey('user.id'))
+    plays = sqldb.relationship('UserSong', backref='song')
+
+
+class OAuth(OAuthConsumerMixin, sqldb.Model):
+    user_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey(User.id))
+    user = sqldb.relationship(User)
 
 
 class Database:
@@ -42,8 +55,8 @@ class Database:
         Returns:
 
         """
-        songs = sqldb.session.query(Song.period, Song.name, Song.artist, Song.spotify_id, Song.desc)\
-            .with_parent(self.current_user).filter_by(saved=True).order_by(Song.date.desc()).distinct().all()
+        songs = sqldb.session.query(UserSong.period, Song.name, Song.artist, Song.spotify_id, UserSong.desc).join(Song, UserSong.song_id == Song.id)\
+            .with_parent(self.current_user).filter(UserSong.saved==True).order_by(UserSong.date.desc()).distinct().all()
         return songs
 
     def get_period_songs(self, target_period):
@@ -55,16 +68,18 @@ class Database:
         Returns:
 
         """
-        songs = sqldb.session.query(Song.name, Song.artist, func.count(Song.spotify_id), Song.spotify_id, func.count(Song.saved))\
-            .with_parent(self.current_user).filter_by(period=target_period).group_by(Song.spotify_id)\
-            .having(func.count(Song.spotify_id) > 1).order_by(func.count(Song.saved).desc(), func.count(Song.spotify_id).desc()).all()
+        # TODO: requires UserSong to be queried first; is there a way to make it not so?
+        songs = sqldb.session.query(func.count(UserSong.saved), Song.name, Song.artist, func.count(Song.spotify_id), Song.spotify_id).join(Song, UserSong.song_id == Song.id)\
+            .with_parent(self.current_user).filter(UserSong.period==target_period).group_by(Song.spotify_id)\
+            .having(func.count(Song.spotify_id) > 1).order_by(func.count(UserSong.saved).desc(), func.count(Song.spotify_id).desc()).all()
 
         return songs
 
-    def add_song(self, *, name, artist, desc, date, song_id, period):
+    def add_song(self, name, artist, desc, date, song_id, period, saved=None):
         """
-        Add played song to db
+        Add played song to db. Checks if song exists in db, and if not, adds
         Args:
+            saved:
             name:
             artist:
             desc:
@@ -75,9 +90,15 @@ class Database:
         Returns:
 
         """
-        song = Song(name=name, artist=artist, desc=desc, song_user=self.current_user, date=date, spotify_id=song_id,
-                       period=period, saved=None)
-        sqldb.session.add(song)
+        song = sqldb.session.query(Song).filter_by(spotify_id=song_id).first()
+        if song is None:
+            song = Song(name=name, artist=artist, spotify_id=song_id)
+            sqldb.session.add(song)
+            sqldb.session.commit()
+
+        songRecord = UserSong(desc=desc, user=self.current_user, date=date, period=period, saved=saved)
+        song.plays.append(songRecord)
+        sqldb.session.add(songRecord)
         sqldb.session.commit()
 
     def get_most_recent(self):
@@ -86,12 +107,12 @@ class Database:
         Returns:
 
         """
-        recent = sqldb.session.query(Song).with_parent(self.current_user).order_by(Song.date.desc()).first().date
+        recent = sqldb.session.query(UserSong).with_parent(self.current_user).order_by(UserSong.date.desc()).first().date
         return recent
 
     def save_song(self, sid):
-        mark = sqldb.session.query(Song).with_parent(self.current_user).filter_by(spotify_id=sid) \
-            .order_by(Song.saved.desc()).first()
+        mark = sqldb.session.query(UserSong).join(Song, Song.id==UserSong.song_id).with_parent(self.current_user).\
+            filter(Song.spotify_id==sid).first()
         mark.saved = True if mark.saved is None else None
         sqldb.session.commit()
 
@@ -107,7 +128,7 @@ class Database:
 
         """
         if current_user:
-            sqldb.session.query(Song).with_parent(current_user).filter(Song.saved is not None).update({"saved": None})
+            sqldb.session.query(UserSong).with_parent(current_user).filter(UserSong.saved is not None).update({"saved": None})
         else:
-            sqldb.session.query(Song).filter(Song.saved is not None).update({"saved": None})
+            sqldb.session.query(UserSong).filter(UserSong.saved is not None).update({"saved": None})
         sqldb.session.commit()
