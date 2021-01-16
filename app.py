@@ -50,7 +50,8 @@ SEASONS = {1: 'Winter',
 
 REV_SEASONS = {'Spring': 3, 'Summer': 6, 'Fall': 9, 'Winter': 12}
 
-### OAUTH / LOG IN ###
+
+#--- OAUTH / LOG IN ---#
 
 
 @login_manager.user_loader
@@ -88,14 +89,15 @@ def logged_in(this_blueprint, token):
         login_user(user)
 
 
-### SPOTIFY API ###
+#--- SPOTIFY API ---#
 
 
 @app.route('/search', methods=['GET'])
 def search():
     query = request.args.get('query')
     try:
-        resp = spotify.get(f'/v1/search?q={query}&type=track&market=US', headers={'Access-Control-Allow-Origin': '*'}).json()
+        resp = spotify.get(f'/v1/search?q={query}&type=track&market=US',
+                           headers={'Access-Control-Allow-Origin': '*'}).json()
     except TokenExpiredError:
         return redirect(url_for('spotify.login'))
     return resp
@@ -104,8 +106,8 @@ def search():
 @app.route('/save')
 def save():
     spotify_id = request.args.get('id')
-    dbInterface.save_song(spotify_id)
-    return {"status": 200} #TODO: look into actual status responses
+    dbInterface.save_song(spotify_id) # TODO: add error catching here
+    return {"status": 200}  # TODO: look into actual status responses
 
 
 @app.route('/add_song', methods=['POST'])
@@ -114,10 +116,12 @@ def add_song():
     name = request.form.get('name')
     artist = request.form.get('artist')
     desc = request.form.get('desc')
-    period = request.form.get('season') + " " + request.form.get('year')
-    date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(request.form.get('year'), REV_SEASONS[request.form.get('season')], 1) # 2020-08-26T00:25:10.291Z
+    period = request.form.get('season')
+    year = request.form.get('year')
+    date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(request.form.get('year'), REV_SEASONS[request.form.get('season')],
+                                                   1)  # 2020-08-26T00:25:10.291Z
 
-    dbInterface.add_song(name=name, artist=artist, desc=desc, period=period, date=date, song_id=spotify_id, saved=True)
+    dbInterface.add_song(name=name, artist=artist, desc=desc, period=period, year=year, date=date, song_id=spotify_id, saved=True)
     return redirect('/browse')
 
 
@@ -125,6 +129,33 @@ def add_song():
 def reset():
     dbInterface.reset_saved(current_user)
     return "done"
+
+
+def get_and_update_db(most_recent):
+    try:
+        # resp = spotify.get(f'/v1/me/player/recently-played?limit=50&before={int(timestamp)}').json() use when API beta is over and fixed
+        resp = spotify.get(f'/v1/me/player/recently-played?limit=50').json()
+
+    except TokenExpiredError:
+        return redirect(url_for('spotify.login'))
+
+    # get the most recent songs to update db
+    for played in resp['items']:
+        date = played['played_at']
+
+        if date <= most_recent:
+            break
+        name = played['track']['name']
+        song_id = played['track']['uri'].split(':')[2]
+        artist = played['track']['artists'][0]['name'] if len(played['track']['artists']) <= 1 else \
+            played['track']['artists'][0]['name'] + " and others"
+        desc = ""
+        # parse datetime ex. 2020-08-20T21:43:25.567Z
+        year, month, *_ = date.split('-')
+
+        # declare period
+        period = SEASONS[int(month)]
+        dbInterface.add_song(name=name, song_id=song_id, artist=artist, desc=desc, period=period, year=year, date=date)
 
 
 # def topSongs():
@@ -139,9 +170,12 @@ def reset():
 #                 artist = song['artists'][0]['name'] if len(song['artists']) <= 1 else song['artists'][0]['name'] + " and others"
 #             # top_songs[term] =
 
+
+#--- VIEWS ---#
+
+
 @app.route('/travel', methods=['GET', 'POST'])
 def travel():
-
     if not spotify.authorized:
         return render_template('logged_out.html')
 
@@ -154,45 +188,20 @@ def travel():
         most_recent = '0'
         # timestamp = 0 use when API beta is over and fixed
 
-    try:
-        # resp = spotify.get(f'/v1/me/player/recently-played?limit=50&before={int(timestamp)}').json() use when API beta is over and fixed
-        resp = spotify.get(f'/v1/me/player/recently-played?limit=50').json()
-
-    except TokenExpiredError:
-        return redirect(url_for('spotify.login'))
-
-    # get the most recent songs to update db
-    for played in resp['items']:
-        date = played['played_at']
-
-        if date <= most_recent:
-            break
-
-        name = played['track']['name']
-        song_id = played['track']['uri'].split(':')[2]
-        artist = played['track']['artists'][0]['name'] if len(played['track']['artists']) <= 1 else \
-            played['track']['artists'][0]['name'] + " and others"
-        desc = ""
-        # parse datetime ex. 2020-08-20T21:43:25.567Z
-        year, month, *_ = date.split('-')
-
-        # declare period
-        period = SEASONS[int(month)] + ' ' + year
-        dbInterface.add_song(name=name, song_id=song_id, artist=artist, desc=desc, period=period, date=date)
+    get_and_update_db(most_recent)
 
     # get the songs to display
     season = request.args.get('season')
     year = request.args.get('year')
 
     if season and year:
-        target_period = season + ' ' + year
+        target_period = season
     else:
         target_period = None
 
     # get songs in period
-    songs = dbInterface.get_period_songs(target_period)
+    songs = dbInterface.get_period_songs(target_period, year)
 
-    print(f'{songs}')
     return render_template('travel.html', songs=songs, current_year=current_year, carMax=3)
 
 
@@ -204,7 +213,7 @@ def browse():
     songs = dbInterface.get_saved_songs()
     current_year = datetime.now().year
 
-    return render_template('browse.html', songs=songs, current_year=current_year)
+    return render_template('browse.html', resp=songs, current_year=current_year)
 
 
 if __name__ == "__main__":

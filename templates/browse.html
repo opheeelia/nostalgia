@@ -73,31 +73,36 @@
         </div>
     </div>
 </div>
-<div id="accordion">
-    {% for song in songs %}
-        {% if loop.first or loop.previtem[0] != song[0] %}
-        <div class="card">
-            <div class="card-header" id="heading{{loop.index}}">
-                <a data-toggle="collapse" data-target="#collapse{{loop.index}}" aria-expanded="true"
-                        aria-controls="collapse{{loop.index}}">
-                    {{song[0]}}
-                </a>
-            </div>
+{% for songs in resp %}
+<div class="card">
+    <p>{{songs[0][1]}}</p>
+    <div id="accordion">
+        {% for song in songs %}
+            {% if loop.first or loop.previtem[0] != song[0] %}
+            <div class="card">
+                <div class="card-header" id="heading{{loop.index}}">
+                    <a data-toggle="collapse" data-target="#collapse{{loop.index}}" aria-expanded="true"
+                            aria-controls="collapse{{loop.index}}">
+                        {{song[0]}}
+                    </a>
+                </div>
 
-            <div id="collapse{{loop.index}}" class="collapse show" data-parent="#accordion">
-        {% endif %}
-        <div class="song-tile" id="saved-tile-{{song[3]}}">
-            <p class="song-label"> {{song[1]}}</p>
-            <p> by {{song[2]}}</p>
-            <p> {{song[4]}}</p>
-            <button type="button" class="close no-float" aria-label="Unsave song" onclick="onSave('{{song[3]}}')">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </div>
-        {% if loop.last or song[0] != loop.nextitem[0] %}
+                <div id="collapse{{loop.index}}" class="collapse show" data-parent="#accordion">
+            {% endif %}
+            <div class="song-tile" id="saved-tile-{{song[4]}}">
+                <p class="song-label"> {{song[2]}}</p>
+                <p> by {{song[3]}}</p>
+                <p> {{song[5]}}</p>
+                <button type="button" class="close no-float" aria-label="Unsave song" onclick="onSave('{{song[4]}}')">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
-        </div>
-        {% endif %}
-    {% endfor %}
+            {% if loop.last or song[0] != loop.nextitem[0] %}
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
 </div>
+{% endfor %}
 {% endblock %}
