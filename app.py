@@ -1,7 +1,7 @@
-from flask import Flask, redirect, request, render_template, url_for
+from flask import Flask, redirect, request, render_template, url_for, Response
 from dotenv import load_dotenv
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_dance.contrib.spotify import make_spotify_blueprint, spotify
 from oauthlib.oauth2.rfc6749.errors import TokenExpiredError
 from flask_login import current_user, login_user, logout_user, LoginManager, login_required
@@ -28,7 +28,7 @@ load_dotenv()
 scope = "user-read-recently-played"
 blueprint = make_spotify_blueprint(client_id=os.environ.get('SPOTIPY_CLIENT_ID'),
                                    client_secret=os.environ.get('SPOTIPY_CLIENT_SECRET'),
-                                   scope=["user-read-recently-played", "user-read-email"],
+                                   scope=["user-read-recently-played", "user-read-email", "user-top-read"],
                                    redirect_url="/travel",
                                    storage=SQLAlchemyStorage(OAuth, sqldb.session, user=current_user,
                                                              user_required=False))
@@ -85,6 +85,7 @@ def logged_in(this_blueprint, token):
             user = User(username=user_id)
             sqldb.session.add(user)
             sqldb.session.commit()
+            topSongs()
 
         login_user(user)
 
@@ -96,8 +97,8 @@ def logged_in(this_blueprint, token):
 def search():
     query = request.args.get('query')
     try:
-        resp = spotify.get(f'/v1/search?q={query}&type=track&market=US',
-                           headers={'Access-Control-Allow-Origin': '*'}).json()
+        resp = spotify.get(f'/v1/search?q={query}&type=track&market=US').json()
+        # resp.headers["Access-Control-Allow-Origin"] = "*"
     except TokenExpiredError:
         return redirect(url_for('spotify.login'))
     return resp
@@ -118,10 +119,14 @@ def add_song():
     desc = request.form.get('desc')
     period = request.form.get('season')
     year = request.form.get('year')
-    date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(request.form.get('year'), REV_SEASONS[request.form.get('season')],
-                                                   1)  # 2020-08-26T00:25:10.291Z
+    image = request.form.get('image')
+    preview = request.form.get('preview')
+    link = request.form.get('link')
+    defSeason = REV_SEASONS[request.form.get('season')] if request.form.get('season') else 1
+    date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(request.form.get('year'), defSeason, 1)  # 2020-08-26T00:25:10.291Z
 
-    dbInterface.add_song(name=name, artist=artist, desc=desc, period=period, year=year, date=date, song_id=spotify_id, saved=True)
+    dbInterface.add_song(name=name, artist=artist, desc=desc, period=period, year=year, date=date, song_id=spotify_id,
+                         saved=True, image=image, preview=preview, link=link)
     return redirect('/browse')
 
 
@@ -146,29 +151,68 @@ def get_and_update_db(most_recent):
         if date <= most_recent:
             break
         name = played['track']['name']
-        song_id = played['track']['uri'].split(':')[2]
+        song_id = played['track']['uri'].split(':')[2]  # todo: change to ID
         artist = played['track']['artists'][0]['name'] if len(played['track']['artists']) <= 1 else \
             played['track']['artists'][0]['name'] + " and others"
-        desc = ""
+        desc = ''
+        image = played['track']['album']['images'][-1]['url']  # get link to smallest image
+        preview = played['track']['preview_url']
+        link = played['track']['external_urls']['spotify']
         # parse datetime ex. 2020-08-20T21:43:25.567Z
         year, month, *_ = date.split('-')
 
         # declare period
         period = SEASONS[int(month)]
-        dbInterface.add_song(name=name, song_id=song_id, artist=artist, desc=desc, period=period, year=year, date=date)
+        dbInterface.add_song(name=name, song_id=song_id, artist=artist, desc=desc, period=period, year=year, date=date,
+                             image=image, preview=preview, link=link)
 
 
-# def topSongs():
-#     time_periods = ['short_term', 'medium_term', 'long_term']
-#     try:
-#         top_songs = {}
-#         for term in time_periods:
-#             resp = spotify.get(f'/v1/me/top/tracks?time_range={term}').json()
-#             for song in resp['items']:
-#                 name = song['name']
-#                 song_id = song['id']
-#                 artist = song['artists'][0]['name'] if len(song['artists']) <= 1 else song['artists'][0]['name'] + " and others"
-#             # top_songs[term] =
+def topSongs():
+    time_periods = ['medium_term', 'short_term' ] # , 'long_term'] todo: find where to add long term
+    try:
+        top_songs = set()
+        today = datetime.now()
+        for term in time_periods:
+            resp = spotify.get(f'/v1/me/top/tracks?time_range={term}').json()
+            for song in resp['items']:
+                song_id = song['id']
+                if song_id not in top_songs:
+                    name = song['name']
+                    artist = song['artists'][0]['name'] if len(song['artists']) <= 1 else song['artists'][0]['name'] + " and others"
+                    image = song['album']['images'][-1]['url']
+                    year = (today - timedelta(days=180 if term == 'medium_term' else 30)).year
+                    preview = song['preview_url']
+                    link = song['external_urls']['spotify']
+                    date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(year, 1, 1)  # 2020-08-26T00:25:10.291Z
+                    top_songs.add(song_id)  # don't allow repeats
+                    dbInterface.add_song(name=name, artist=artist, desc='', year=year, date=date,
+                                     song_id=song_id, saved=True, image=image, preview=preview, link=link)
+
+        # get from Your Top Songs playlist
+        resp = spotify.get(f'/v1/search?q=your%20top%20songs&type=playlist').json()
+        for item in resp['playlists']['items']:
+            if item['owner']['id'] == 'spotify' and item['name'][:14] == 'Your Top Songs':
+                # add songs in this playlist to the specified year
+                year = int(item['name'][15:])
+                playlist_id = item['id']
+                songResp = spotify.get(f'v1/playlists/{playlist_id}/tracks').json()
+                for song in songResp['items']:
+                    popularity = int(song['track']['popularity'])
+                    if popularity > 50:
+                        name = song['track']['name']
+                        song_id = song['track']['id']
+                        artist = song['track']['artists'][0]['name'] if len(song['track']['artists']) <= 1 else \
+                            song['track']['artists'][0]['name'] + " and others"
+                        image = song['track']['album']['images'][-1]['url']  # get link to smallest image
+                        preview = song['track']['preview_url']
+                        link = song['track']['external_urls']['spotify']
+                        date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(year, 1, 1)  # 2020-08-26T00:25:10.291Z
+                        dbInterface.add_song(name=name, song_id=song_id, artist=artist, desc='', year=year, date=date,
+                                             image=image, preview=preview, link=link, saved=True)
+
+    except TokenExpiredError:
+        raise TokenExpiredError
+
 
 
 #--- VIEWS ---#
@@ -179,30 +223,37 @@ def travel():
     if not spotify.authorized:
         return render_template('logged_out.html')
 
-    # get year
-    current_year = datetime.now().year
     try:
-        most_recent = dbInterface.get_most_recent()
-        # timestamp = datetime.strptime(most_recent, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp() use when API beta is over and fixed
-    except (UnmappedInstanceError, AttributeError):
-        most_recent = '0'
-        # timestamp = 0 use when API beta is over and fixed
+        # get year
+        current_year = datetime.now().year
+        try:
+            most_recent = dbInterface.get_most_recent()
+            # timestamp = datetime.strptime(most_recent, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp() use when API beta is over and fixed
+        except (UnmappedInstanceError, AttributeError):
+            most_recent = '0'
+            # timestamp = 0 use when API beta is over and fixed
 
-    get_and_update_db(most_recent)
+        get_and_update_db(most_recent)
 
-    # get the songs to display
-    season = request.args.get('season')
-    year = request.args.get('year')
+        # get the songs to display
+        season = request.args.get('season')
+        year = request.args.get('year')
 
-    if season and year:
-        target_period = season
-    else:
-        target_period = None
+        if season and year:
+            target_period = season
+        elif year:
+            target_period = None
+        elif season:
+            return render_template('travel.html', songs=[], current_year=current_year, carMax=3), 400
+        else:
+            return render_template('travel.html', songs=[], current_year=current_year, carMax=3), 200
 
-    # get songs in period
-    songs = dbInterface.get_period_songs(target_period, year)
+        # get songs in period
+        songs = dbInterface.get_period_songs(target_period, year)
 
-    return render_template('travel.html', songs=songs, current_year=current_year, carMax=3)
+        return render_template('travel.html', songs=songs, current_year=current_year, carMax=3), 200
+    except TokenExpiredError:
+        return redirect(url_for('spotify.login'))
 
 
 @app.route('/browse', methods=['GET', 'POST'])
@@ -210,8 +261,11 @@ def browse():
     if not spotify.authorized:
         return render_template('logged_out.html')
 
-    songs = dbInterface.get_saved_songs()
-    current_year = datetime.now().year
+    try:
+        songs = dbInterface.get_saved_songs()
+        current_year = datetime.now().year
+    except TokenExpiredError:
+        return redirect(url_for('spotify.login'))
 
     return render_template('browse.html', resp=songs, current_year=current_year)
 

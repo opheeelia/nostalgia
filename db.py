@@ -35,6 +35,9 @@ class Song(sqldb.Model):
     spotify_id = sqldb.Column(sqldb.String)
     name = sqldb.Column(sqldb.String)
     artist = sqldb.Column(sqldb.String)
+    image = sqldb.Column(sqldb.String)  # link to image
+    preview = sqldb.Column(sqldb.String)  # link to preview
+    link = sqldb.Column(sqldb.String)
     plays = sqldb.relationship('UserSong', backref='song')
 
 
@@ -47,6 +50,7 @@ class Database:
     """
     Class to access database, read and write
     """
+    MIN_PLAYED = 3
     def __init__(self, user):
         self.current_user = user
 
@@ -56,7 +60,8 @@ class Database:
         Returns:
 
         """
-        songs = sqldb.session.query(UserSong.period, UserSong.year, Song.name, Song.artist, Song.spotify_id, UserSong.desc).join(Song, UserSong.song_id == Song.id)\
+        songs = sqldb.session.query(UserSong.period, UserSong.year, Song.name, Song.artist, Song.spotify_id, UserSong.desc,
+                                    Song.image, Song.link, Song.preview).join(Song, UserSong.song_id == Song.id)\
             .with_parent(self.current_user).filter(UserSong.saved==True).order_by(UserSong.date.desc()).distinct().all()
         # TODO: double check that ordering by date is ok
         resp = []
@@ -78,19 +83,31 @@ class Database:
         """
         used in /travel
         Args:
+            target_year:
             target_period:
 
         Returns:
 
         """
         # TODO: requires UserSong to be queried first; is there a way to make it not so?
-        songs = sqldb.session.query(func.count(UserSong.saved), Song.name, Song.artist, func.count(Song.spotify_id), Song.spotify_id).join(Song, UserSong.song_id == Song.id)\
-            .with_parent(self.current_user).filter(UserSong.period==target_period, UserSong.year==target_year).group_by(Song.spotify_id)\
-            .having(func.count(Song.spotify_id) > 1).order_by(func.count(UserSong.saved).desc(), func.count(Song.spotify_id).desc()).all()
+        if target_period:
+            songs = sqldb.session.query(func.count(UserSong.saved), Song.name, Song.artist, func.count(Song.spotify_id),
+                                        Song.spotify_id, Song.image, Song.link).join(Song, UserSong.song_id == Song.id)\
+                .with_parent(self.current_user).filter(UserSong.period==target_period, UserSong.year==target_year).group_by(Song.spotify_id)\
+                .having((func.count(Song.spotify_id) > Database.MIN_PLAYED) | (UserSong.saved != None))\
+                .order_by(func.count(UserSong.saved).desc(), func.count(Song.spotify_id).desc()).all()
+        elif target_year:
+            songs = sqldb.session.query(func.count(UserSong.saved), Song.name, Song.artist, func.count(Song.spotify_id),
+                                        Song.spotify_id, Song.image, Song.link).join(Song, UserSong.song_id == Song.id) \
+                .with_parent(self.current_user).filter(UserSong.year == target_year).group_by(Song.spotify_id) \
+                .having((func.count(Song.spotify_id) > Database.MIN_PLAYED) | (UserSong.saved != None))\
+                .order_by(func.count(UserSong.saved).desc(), func.count(Song.spotify_id).desc()).all()
+        else:
+            return []
 
         return songs
 
-    def add_song(self, name, artist, desc, date, song_id, period, year, saved=None):
+    def add_song(self, name, artist, desc, date, song_id, year, preview, image, link, period=None, saved=None):
         """
         Add played song to db. Checks if song exists in db, and if not, adds
         Args:
@@ -107,7 +124,7 @@ class Database:
         """
         song = sqldb.session.query(Song).filter_by(spotify_id=song_id).first()
         if song is None:
-            song = Song(name=name, artist=artist, spotify_id=song_id)
+            song = Song(name=name, artist=artist, preview=preview, image=image, link=link, spotify_id=song_id)
             sqldb.session.add(song)
             sqldb.session.commit()
 
@@ -147,3 +164,9 @@ class Database:
         else:
             sqldb.session.query(UserSong).filter(UserSong.saved is not None).update({"saved": None})
         sqldb.session.commit()
+
+    def clear_db(self):
+        # todo: fix
+        sqldb.session.query(UserSong).delete()
+        sqldb.session.query(Song).delete()
+        sqldb.session.query(User).delete()

@@ -42,6 +42,9 @@ function onSearch(){
                 document.getElementById('song-name').value = suggestion['name'];
                 document.getElementById('song-artist').value = suggestion['artists'][0]['name'];
                 document.getElementById('song-id').value = suggestion['id'];
+                document.getElementById('song-image').value = suggestion['album']['images'][suggestion['album']['images'].length - 1]['url'];
+                document.getElementById('song-preview').value = suggestion['preview_url'];
+                document.getElementById('song-link').value = suggestion['external_urls']['spotify'];
                 document.getElementById('search-results').style.display = "none";
                 document.getElementById('period-picker').style.display = "block";
             };
@@ -69,3 +72,15 @@ function onSave(id) {
     });
 }
 
+function onAudioToggle(id){
+    if (!document.getElementById(`play-${id}`).paused){
+        document.getElementById(`play-${id}`).pause();
+        // change to play button
+        document.getElementById(`toggle-play-${id}`).innerHTML = "<i class=\"bi bi-play\"></i>";
+
+    }else {
+        document.getElementById(`play-${id}`).play();
+        // change to pause button
+        document.getElementById(`toggle-play-${id}`).innerHTML = "<i class=\"bi bi-pause\"></i>";
+    }
+}
