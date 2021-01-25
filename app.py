@@ -10,11 +10,9 @@ from flask_dance.consumer.storage.sqla import SQLAlchemyStorage
 from sqlalchemy.orm.exc import NoResultFound, UnmappedInstanceError
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
-from flask_cors import CORS, cross_origin
 from db import sqldb, User, OAuth, Database
 
 app = Flask(__name__)
-CORS(app)
 app.secret_key = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sqldb.db'
@@ -99,7 +97,6 @@ def makeRequest(url):
 
 
 @app.route('/search', methods=['GET'])
-@cross_origin()
 def search():
     query = request.args.get('query')
     try:
