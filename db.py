@@ -13,6 +13,7 @@ convention = {
 # sqldb = SQLAlchemy(metadata=MetaData(naming_convention=convention))
 sqldb = SQLAlchemy()
 
+
 class User(UserMixin, sqldb.Model):
     id = sqldb.Column(sqldb.Integer, primary_key=True)
     username = sqldb.Column(sqldb.String, unique=True)

@@ -295,6 +295,7 @@ def browse():
 
 
 if __name__ == "__main__":
+    print('INITIATING APP IN MAIN')
     sqldb.init_app(app)
     migrate.init_app(app, sqldb)
     with app.app_context():
