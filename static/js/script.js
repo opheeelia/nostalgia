@@ -19,7 +19,7 @@ setDefaultSelected(document.getElementById('year'), year);
 function onSearch(){
     const query = document.getElementById('song-search').value;
     const parent = document.getElementById('search-results');
-    fetch(`/search?query=${query}`).then(res => res.json()).then(data => {
+    fetch(`/search?query=${query}`, {headers: {'Access-Control-Allow-Origin': 'http://127.0.0.1:5000', 'Origin': 'http://127.0.0.1:5000'}}).then(res => res.json()).then(data => {
         console.log(data);
         parent.innerText = ""; //clear search
         parent.style.display = "block";
@@ -38,7 +38,7 @@ function onSearch(){
             addButton.innerText = "+";
             addButton.onclick = () => {
                 // make time period show up and search results disappear
-                document.getElementById('song-search').value = suggestion['name'] + ' by ' + suggestion['artists'][0]['name'];
+                document.getElementById('song-search').value = suggestion['name'];
                 document.getElementById('song-name').value = suggestion['name'];
                 document.getElementById('song-artist').value = suggestion['artists'][0]['name'];
                 document.getElementById('song-id').value = suggestion['id'];
@@ -57,14 +57,16 @@ function onSearch(){
 }
 
 function onSave(id) {
-    fetch(`/save?id=${id}`).then(res=>res.json()).then(data => {
+    // stop audio if playing
+    document.getElementById(`play-${id}`).pause();
+    fetch(`/save?id=${id}`).then(res=> {
         const idsToScan = [`save-button-empty-${id}`, `save-button-filled-${id}`, `saved-tile-${id}`];
         //update it to be filled
         for (const idName of idsToScan) {
-            if (document.getElementById(idName)){
-                if (document.getElementById(idName).style.display !== "none"){
+            if (document.getElementById(idName)) {
+                if (document.getElementById(idName).style.display !== "none") {
                     document.getElementById(idName).style.display = "none";
-                }else{
+                } else {
                     document.getElementById(idName).style.display = "inline";
                 }
             }

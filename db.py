@@ -143,10 +143,13 @@ class Database:
         return recent
 
     def save_song(self, sid):
-        mark = sqldb.session.query(UserSong).join(Song, Song.id==UserSong.song_id).with_parent(self.current_user).\
-            filter(Song.spotify_id==sid).first()
-        mark.saved = True if mark.saved is None else None
-        sqldb.session.commit()
+        try:
+            mark = sqldb.session.query(UserSong).join(Song, Song.id==UserSong.song_id).with_parent(self.current_user).\
+                filter(Song.spotify_id==sid).first()
+            mark.saved = True if mark.saved is None else None  # toggles save
+            sqldb.session.commit()
+        except AttributeError:
+            raise Exception("Song not found")
 
     @staticmethod
     def reset_saved(current_user=None):

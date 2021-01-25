@@ -1,4 +1,5 @@
 python-dotenv
+gunicorn
 Flask
 flask-sqlalchemy
 flask-dance[sqla]

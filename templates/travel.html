@@ -14,8 +14,8 @@
                     </select>
                 </div>
                 <div class="col-auto my-1">
-                    <select class="custom-select mr-sm-2" name="year" id="year">
-                        <option selected disabled>Year...</option>
+                    <select class="custom-select mr-sm-2" name="year" id="year" required>
+                        <option value="" selected disabled>Year...</option>
                         {% for yr in range(current_year, 2005, -1) %}
                         <option value={{yr}}>{{yr}}</option>
                         {% endfor %}

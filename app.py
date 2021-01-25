@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, render_template, url_for, Response
+from flask import Flask, redirect, request, render_template, url_for, Response, make_response
 from dotenv import load_dotenv
 import os
 from datetime import datetime, timedelta
@@ -10,9 +10,11 @@ from flask_dance.consumer.storage.sqla import SQLAlchemyStorage
 from sqlalchemy.orm.exc import NoResultFound, UnmappedInstanceError
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
+from flask_cors import CORS, cross_origin
 from db import sqldb, User, OAuth, Database
 
 app = Flask(__name__)
+CORS(app)
 app.secret_key = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sqldb.db'
@@ -85,30 +87,39 @@ def logged_in(this_blueprint, token):
             user = User(username=user_id)
             sqldb.session.add(user)
             sqldb.session.commit()
-            topSongs()
+            topSongs()  # todo: have loading to show
 
         login_user(user)
 
 
 #--- SPOTIFY API ---#
 
+def makeRequest(url):
+    spotify.get(url).json()
+
 
 @app.route('/search', methods=['GET'])
+@cross_origin()
 def search():
     query = request.args.get('query')
     try:
         resp = spotify.get(f'/v1/search?q={query}&type=track&market=US').json()
         # resp.headers["Access-Control-Allow-Origin"] = "*"
     except TokenExpiredError:
-        return redirect(url_for('spotify.login'))
+        resp = make_response(redirect(url_for('spotify.login')))
+        resp.headers["Access-Control-Allow-Origin"] = "http://127.0.0.1:5000"
+        # return redirect(url_for('spotify.login'))
     return resp
 
 
 @app.route('/save')
 def save():
     spotify_id = request.args.get('id')
-    dbInterface.save_song(spotify_id) # TODO: add error catching here
-    return {"status": 200}  # TODO: look into actual status responses
+    try:
+        dbInterface.save_song(spotify_id) # TODO: add error catching here
+    except:
+        return Response(status=500)
+    return Response(status=200)
 
 
 @app.route('/add_song', methods=['POST'])
@@ -122,18 +133,20 @@ def add_song():
     image = request.form.get('image')
     preview = request.form.get('preview')
     link = request.form.get('link')
+    if not spotify_id or not name or not artist or not year:
+        return redirect('/browse'), 400
     defSeason = REV_SEASONS[request.form.get('season')] if request.form.get('season') else 1
     date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(request.form.get('year'), defSeason, 1)  # 2020-08-26T00:25:10.291Z
 
     dbInterface.add_song(name=name, artist=artist, desc=desc, period=period, year=year, date=date, song_id=spotify_id,
                          saved=True, image=image, preview=preview, link=link)
-    return redirect('/browse')
+    return redirect('/browse'), 200
 
 
 @app.route('/resetSaved')
 def reset():
     dbInterface.reset_saved(current_user)
-    return "done"
+    return Response(status=200)
 
 
 def get_and_update_db(most_recent):
@@ -142,29 +155,32 @@ def get_and_update_db(most_recent):
         resp = spotify.get(f'/v1/me/player/recently-played?limit=50').json()
 
     except TokenExpiredError:
-        return redirect(url_for('spotify.login'))
+        raise TokenExpiredError
 
     # get the most recent songs to update db
     for played in resp['items']:
-        date = played['played_at']
+        try:
+            date = played['played_at']
 
-        if date <= most_recent:
-            break
-        name = played['track']['name']
-        song_id = played['track']['uri'].split(':')[2]  # todo: change to ID
-        artist = played['track']['artists'][0]['name'] if len(played['track']['artists']) <= 1 else \
-            played['track']['artists'][0]['name'] + " and others"
-        desc = ''
-        image = played['track']['album']['images'][-1]['url']  # get link to smallest image
-        preview = played['track']['preview_url']
-        link = played['track']['external_urls']['spotify']
-        # parse datetime ex. 2020-08-20T21:43:25.567Z
-        year, month, *_ = date.split('-')
+            if date <= most_recent:
+                break
+            name = played['track']['name']
+            song_id = played['track']['uri'].split(':')[2]  # todo: change to ID
+            artist = played['track']['artists'][0]['name'] if len(played['track']['artists']) <= 1 else \
+                played['track']['artists'][0]['name'] + " and others"
+            desc = ''
+            image = played['track']['album']['images'][-1]['url']  # get link to smallest image
+            preview = played['track']['preview_url']
+            link = played['track']['external_urls']['spotify']
+            # parse datetime ex. 2020-08-20T21:43:25.567Z
+            year, month, *_ = date.split('-')
 
-        # declare period
-        period = SEASONS[int(month)]
-        dbInterface.add_song(name=name, song_id=song_id, artist=artist, desc=desc, period=period, year=year, date=date,
-                             image=image, preview=preview, link=link)
+            # declare period
+            period = SEASONS[int(month)]
+            dbInterface.add_song(name=name, song_id=song_id, artist=artist, desc=desc, period=period, year=year, date=date,
+                                 image=image, preview=preview, link=link)
+        except AttributeError:
+            print("ERROR when adding songs")  # skip this one
 
 
 def topSongs():
@@ -175,40 +191,51 @@ def topSongs():
         for term in time_periods:
             resp = spotify.get(f'/v1/me/top/tracks?time_range={term}').json()
             for song in resp['items']:
-                song_id = song['id']
-                if song_id not in top_songs:
-                    name = song['name']
-                    artist = song['artists'][0]['name'] if len(song['artists']) <= 1 else song['artists'][0]['name'] + " and others"
-                    image = song['album']['images'][-1]['url']
-                    year = (today - timedelta(days=180 if term == 'medium_term' else 30)).year
-                    preview = song['preview_url']
-                    link = song['external_urls']['spotify']
-                    date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(year, 1, 1)  # 2020-08-26T00:25:10.291Z
-                    top_songs.add(song_id)  # don't allow repeats
-                    dbInterface.add_song(name=name, artist=artist, desc='', year=year, date=date,
-                                     song_id=song_id, saved=True, image=image, preview=preview, link=link)
+                try:
+                    song_id = song['id']
+                    if song_id not in top_songs:
+                        name = song['name']
+                        artist = song['artists'][0]['name'] if len(song['artists']) <= 1 else song['artists'][0]['name'] + " and others"
+                        image = song['album']['images'][-1]['url']
+                        year = (today - timedelta(days=180 if term == 'medium_term' else 30)).year
+                        preview = song['preview_url']
+                        link = song['external_urls']['spotify']
+                        date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(year, 1, 1)  # 2020-08-26T00:25:10.291Z
+                        top_songs.add(song_id)  # don't allow repeats
+                        dbInterface.add_song(name=name, artist=artist, desc='', year=year, date=date,
+                                         song_id=song_id, saved=True, image=image, preview=preview, link=link)
+                except AttributeError:
+                    print("ERROR with adding top song")  # skip
 
         # get from Your Top Songs playlist
         resp = spotify.get(f'/v1/search?q=your%20top%20songs&type=playlist').json()
-        for item in resp['playlists']['items']:
-            if item['owner']['id'] == 'spotify' and item['name'][:14] == 'Your Top Songs':
-                # add songs in this playlist to the specified year
-                year = int(item['name'][15:])
-                playlist_id = item['id']
-                songResp = spotify.get(f'v1/playlists/{playlist_id}/tracks').json()
-                for song in songResp['items']:
-                    popularity = int(song['track']['popularity'])
-                    if popularity > 50:
-                        name = song['track']['name']
-                        song_id = song['track']['id']
-                        artist = song['track']['artists'][0]['name'] if len(song['track']['artists']) <= 1 else \
-                            song['track']['artists'][0]['name'] + " and others"
-                        image = song['track']['album']['images'][-1]['url']  # get link to smallest image
-                        preview = song['track']['preview_url']
-                        link = song['track']['external_urls']['spotify']
-                        date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(year, 1, 1)  # 2020-08-26T00:25:10.291Z
-                        dbInterface.add_song(name=name, song_id=song_id, artist=artist, desc='', year=year, date=date,
-                                             image=image, preview=preview, link=link, saved=True)
+        if resp:
+            for item in resp.get('playlists', {'items':[]}).get('items', []):
+                try:
+                    if item['owner']['id'] == 'spotify' and item['name'][:14] == 'Your Top Songs':
+                        # add songs in this playlist to the specified year
+                        year = int(item['name'][15:])
+                        playlist_id = item['id']
+                        songResp = spotify.get(f'v1/playlists/{playlist_id}/tracks').json()
+                        if songResp:
+                            for song in songResp['items']:
+                                try:
+                                    popularity = int(song['track']['popularity'])
+                                    if popularity > 50:
+                                        name = song['track']['name']
+                                        song_id = song['track']['id']
+                                        artist = song['track']['artists'][0]['name'] if len(song['track']['artists']) <= 1 else \
+                                            song['track']['artists'][0]['name'] + " and others"
+                                        image = song['track']['album']['images'][-1]['url']  # get link to smallest image
+                                        preview = song['track']['preview_url']
+                                        link = song['track']['external_urls']['spotify']
+                                        date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(year, 1, 1)  # 2020-08-26T00:25:10.291Z
+                                        dbInterface.add_song(name=name, song_id=song_id, artist=artist, desc='', year=year, date=date,
+                                                             image=image, preview=preview, link=link, saved=True)
+                                except AttributeError:
+                                    print("ERROR in adding playlist song top songs")
+                except AttributeError:
+                    print('ERROR in adding playlist top songs')
 
     except TokenExpiredError:
         raise TokenExpiredError
