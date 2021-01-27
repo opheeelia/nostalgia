@@ -31,7 +31,7 @@ scope = "user-read-recently-played"
 blueprint = make_spotify_blueprint(client_id=os.environ.get('SPOTIPY_CLIENT_ID'),
                                    client_secret=os.environ.get('SPOTIPY_CLIENT_SECRET'),
                                    scope=["user-read-recently-played", "user-read-email", "user-top-read"],
-                                   redirect_url="/travel",
+                                   redirect_url="/discover",
                                    storage=SQLAlchemyStorage(OAuth, sqldb.session, user=current_user,
                                                              user_required=False))
 app.register_blueprint(blueprint=blueprint, url_prefix='/log_in')
@@ -70,7 +70,7 @@ def login():
 @login_required
 def logout():
     logout_user()
-    return redirect('/travel')
+    return redirect('/discover')
 
 
 @oauth_authorized.connect_via(blueprint)
@@ -249,8 +249,8 @@ def topSongs():
 #--- VIEWS ---#
 
 
-@app.route('/travel', methods=['GET', 'POST'])
-def travel():
+@app.route('/discover', methods=['GET', 'POST'])
+def discover():
     if not spotify.authorized:
         return render_template('logged_out.html')
 
@@ -275,14 +275,14 @@ def travel():
         elif year:
             target_period = None
         elif season:
-            return render_template('travel.html', songs=[], current_year=current_year, carMax=3), 400
+            return render_template('discover.html', songs=[], current_year=current_year, carMax=3), 400
         else:
-            return render_template('travel.html', songs=[], current_year=current_year, carMax=3), 200
+            return render_template('discover.html', songs=[], current_year=current_year, carMax=3), 200
 
         # get songs in period
         songs = dbInterface.get_period_songs(target_period, year)
 
-        return render_template('travel.html', songs=songs, current_year=current_year, carMax=3), 200
+        return render_template('discover.html', songs=songs, current_year=current_year, carMax=3), 200
     except TokenExpiredError:
         return redirect(url_for('spotify.login'))
 
