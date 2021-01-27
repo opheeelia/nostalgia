@@ -6,3 +6,4 @@ migrations/
 .env
 sqldb.db
 .flaskenv
+app.yaml
