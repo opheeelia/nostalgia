@@ -19,7 +19,12 @@ setDefaultSelected(document.getElementById('year'), year);
 function onSearch(){
     const query = document.getElementById('song-search').value;
     const parent = document.getElementById('search-results');
-    fetch(`/search?query=${query}`, {headers: {'Access-Control-Allow-Origin': 'http://127.0.0.1:5000', 'Origin': 'http://127.0.0.1:5000'}}).then(res => res.json()).then(data => {
+    fetch(`/search?query=${query}`).then(res => {
+        if (res.redirected){
+            return res;
+        }
+        return res.json();
+    }).then(data => {
         console.log(data);
         parent.innerText = ""; //clear search
         parent.style.display = "block";

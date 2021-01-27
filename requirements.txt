@@ -1,6 +1,6 @@
 python-dotenv
-gunicorn
 Flask
+gunicorn
 flask-sqlalchemy
 flask-dance[sqla]
 sentry-sdk[flask]

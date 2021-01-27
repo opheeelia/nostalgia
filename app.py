@@ -10,9 +10,11 @@ from flask_dance.consumer.storage.sqla import SQLAlchemyStorage
 from sqlalchemy.orm.exc import NoResultFound, UnmappedInstanceError
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
+# from flask_cors import CORS, cross_origin
 from db import sqldb, User, OAuth, Database
 
 app = Flask(__name__)
+# CORS(app, resources={r"/search": {"origins": "http://127.0.0.1:5000"}})
 app.secret_key = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sqldb.db'
@@ -97,15 +99,20 @@ def makeRequest(url):
 
 
 @app.route('/search', methods=['GET'])
+# @cross_origin(origin='127.0.0.1',headers=['Content- Type','Authorization'])
 def search():
     query = request.args.get('query')
     try:
         resp = spotify.get(f'/v1/search?q={query}&type=track&market=US').json()
         # resp.headers["Access-Control-Allow-Origin"] = "*"
     except TokenExpiredError:
+        print("going to redirect")
         resp = make_response(redirect(url_for('spotify.login')))
+        print('RESPONSE')
+        print(resp.headers)
         resp.headers["Access-Control-Allow-Origin"] = "http://127.0.0.1:5000"
-        # return redirect(url_for('spotify.login'))
+        # return redirect(url_for('travel'))
+    print(resp.headers)
     return resp
 
 
@@ -294,8 +301,12 @@ def browse():
     return render_template('browse.html', resp=songs, current_year=current_year)
 
 
+@app.route('/')
+def home():
+    return 'Hello World'
+
+
 if __name__ == "__main__":
-    print('INITIATING APP IN MAIN')
     sqldb.init_app(app)
     migrate.init_app(app, sqldb)
     with app.app_context():

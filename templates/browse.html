@@ -84,13 +84,13 @@
             {% if loop.first or loop.previtem[0] != song[0] %}
             <div class="card">
                 <div class="card-header" id="heading{{loop.index}}">
-                    <a data-toggle="collapse" data-target="#collapse{{loop.index}}" aria-expanded="true"
+                    <a data-toggle="collapse" data-target="#collapse{{songs[0][1]}}{{loop.index}}" aria-expanded="true"
                             aria-controls="collapse{{loop.index}}">
                         {{song[0]}}
                     </a>
                 </div>
 
-                <div id="collapse{{loop.index}}" class="collapse show" data-parent="#accordion">
+                <div id="collapse{{songs[0][1]}}{{loop.index}}" class="collapse show" data-parent="#accordion">
             {% endif %}
             <div class="song-tile" id="saved-tile-{{song[4]}}">
                 <a href="{{song[7]}}"><img src="{{song[6]}}" alt="image"></a>
