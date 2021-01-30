@@ -7,3 +7,4 @@ sentry-sdk[flask]
 flask-login
 flask-script
 flask-migrate
+psycopg2-binary
