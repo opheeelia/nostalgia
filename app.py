@@ -1,6 +1,7 @@
 from flask import Flask, redirect, request, render_template, url_for, Response, make_response
 from dotenv import load_dotenv
 import os
+import psycopg2
 from datetime import datetime, timedelta
 from flask_dance.contrib.spotify import make_spotify_blueprint, spotify
 from oauthlib.oauth2.rfc6749.errors import TokenExpiredError
@@ -20,6 +21,7 @@ app.secret_key = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+conn = psycopg2.connect(os.environ.get('DATABASE_URL'), sslmode='require')
 sqldb.init_app(app)
 login_manager = LoginManager(app)
 dbInterface = Database(current_user)
