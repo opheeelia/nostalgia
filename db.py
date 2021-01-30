@@ -100,7 +100,7 @@ class Database:
         elif target_year:
             songs = sqldb.session.query(func.count(UserSong.saved), Song.name, Song.artist, func.count(Song.spotify_id),
                                         Song.spotify_id, Song.image, Song.link).join(Song, UserSong.song_id == Song.id) \
-                .with_parent(self.current_user).filter(UserSong.year == target_year).group_by(Song.spotify_id) \
+                .with_parent(self.current_user).filter(UserSong.year == target_year).group_by(Song.spotify_id, Song.name, Song.artist, Song.image, Song.link, UserSong.saved) \
                 .having((func.count(Song.spotify_id) > Database.MIN_PLAYED) | (UserSong.saved != None))\
                 .order_by(func.count(UserSong.saved).desc(), func.count(Song.spotify_id).desc()).all()
         else:
