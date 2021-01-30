@@ -16,7 +16,7 @@ sqldb = SQLAlchemy()
 
 class User(UserMixin, sqldb.Model):
     id = sqldb.Column(sqldb.Integer, primary_key=True)
-    username = sqldb.Column(sqldb.String, unique=True)
+    username = sqldb.Column(sqldb.String(100), unique=True)
     songs = sqldb.relationship('UserSong', backref='user')
 
 
@@ -24,7 +24,7 @@ class UserSong(sqldb.Model):
     id = sqldb.Column(sqldb.Integer, primary_key=True)
     desc = sqldb.Column(sqldb.String(150)) #TODO: catch error if greater than 150 char
     saved = sqldb.Column(sqldb.Boolean)
-    date = sqldb.Column(sqldb.String)
+    date = sqldb.Column(sqldb.String(60))
     period = sqldb.Column(sqldb.String(50))
     year = sqldb.Column(sqldb.Integer)
     song_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey('song.id'))
@@ -33,12 +33,12 @@ class UserSong(sqldb.Model):
 
 class Song(sqldb.Model):
     id = sqldb.Column(sqldb.Integer, primary_key=True)
-    spotify_id = sqldb.Column(sqldb.String)
-    name = sqldb.Column(sqldb.String)
-    artist = sqldb.Column(sqldb.String)
-    image = sqldb.Column(sqldb.String)  # link to image
-    preview = sqldb.Column(sqldb.String)  # link to preview
-    link = sqldb.Column(sqldb.String)
+    spotify_id = sqldb.Column(sqldb.String(100))
+    name = sqldb.Column(sqldb.String(100))
+    artist = sqldb.Column(sqldb.String(100))
+    image = sqldb.Column(sqldb.String(300))  # link to image
+    preview = sqldb.Column(sqldb.String(300))  # link to preview
+    link = sqldb.Column(sqldb.String(300))
     plays = sqldb.relationship('UserSong', backref='song')
 
 

@@ -13,19 +13,18 @@ from flask_migrate import Migrate, MigrateCommand
 # from flask_cors import CORS, cross_origin
 from db import sqldb, User, OAuth, Database
 
+load_dotenv()
 app = Flask(__name__)
 # CORS(app, resources={r"/search": {"origins": "http://127.0.0.1:5000"}})
 app.secret_key = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sqldb.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI')
 sqldb.init_app(app)
 login_manager = LoginManager(app)
 dbInterface = Database(current_user)
 migrate = Migrate(app, sqldb, render_as_batch=True)
 manager = Manager(app)
 manager.add_command('db', MigrateCommand)
-
-load_dotenv()
 
 scope = "user-read-recently-played"
 blueprint = make_spotify_blueprint(client_id=os.environ.get('SPOTIPY_CLIENT_ID'),
