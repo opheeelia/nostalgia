@@ -108,13 +108,10 @@ def search():
         resp = spotify.get(f'/v1/search?q={query}&type=track&market=US').json()
         # resp.headers["Access-Control-Allow-Origin"] = "*"
     except TokenExpiredError:
-        print("going to redirect")
         resp = make_response(redirect(url_for('spotify.login')))
-        print('RESPONSE')
-        print(resp.headers)
+        # print(resp.headers)
         resp.headers["Access-Control-Allow-Origin"] = "http://127.0.0.1:5000"
         # return redirect(url_for('travel'))
-    print(resp.headers)
     return resp
 
 

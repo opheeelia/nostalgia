@@ -91,20 +91,14 @@ class Database:
 
         """
         # TODO: requires UserSong to be queried first; is there a way to make it not so?
-        if target_period:
-            songs = sqldb.session.query(func.count(UserSong.saved), Song.name, Song.artist, func.count(Song.spotify_id),
-                                        Song.spotify_id, Song.image, Song.link).join(Song, UserSong.song_id == Song.id)\
-                .with_parent(self.current_user).filter(UserSong.period==target_period, UserSong.year==target_year).group_by(Song.spotify_id)\
-                .having((func.count(Song.spotify_id) > Database.MIN_PLAYED) | (UserSong.saved != None))\
-                .order_by(func.count(UserSong.saved).desc(), func.count(Song.spotify_id).desc()).all()
-        elif target_year:
-            songs = sqldb.session.query(func.count(UserSong.saved), Song.name, Song.artist, func.count(Song.spotify_id),
-                                        Song.spotify_id, Song.image, Song.link).join(Song, UserSong.song_id == Song.id) \
-                .with_parent(self.current_user).filter(UserSong.year == target_year).group_by(Song.spotify_id, Song.name, Song.artist, Song.image, Song.link, UserSong.saved) \
-                .having((func.count(Song.spotify_id) > Database.MIN_PLAYED) | (UserSong.saved != None))\
-                .order_by(func.count(UserSong.saved).desc(), func.count(Song.spotify_id).desc()).all()
-        else:
-            return []
+        filters = [UserSong.period == target_period, UserSong.year == target_year] if target_period else [
+            UserSong.year == target_year] if target_year else []
+
+        songs = sqldb.session.query(func.count(UserSong.saved), Song.name, Song.artist, func.count(Song.spotify_id),
+                                    Song.spotify_id, Song.image, Song.link).join(Song, UserSong.song_id == Song.id)\
+            .with_parent(self.current_user).filter(*filters).group_by(Song.spotify_id, Song.name, Song.artist, Song.image, Song.link, UserSong.saved)\
+            .having((func.count(Song.spotify_id) > Database.MIN_PLAYED) | (UserSong.saved != None))\
+            .order_by(func.count(UserSong.saved).desc(), func.count(Song.spotify_id).desc()).all()
 
         return songs
 
