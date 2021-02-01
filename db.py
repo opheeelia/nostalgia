@@ -2,6 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, MetaData
 from flask_dance.consumer.storage.sqla import OAuthConsumerMixin
 from flask_login import UserMixin
+from sqlalchemy.ext.mutable import MutableList
 
 convention = {
     "ix": 'ix_%(column_0_label)s',
@@ -17,6 +18,7 @@ sqldb = SQLAlchemy()
 class User(UserMixin, sqldb.Model):
     id = sqldb.Column(sqldb.Integer, primary_key=True)
     username = sqldb.Column(sqldb.String(100), unique=True)
+    recent = sqldb.Column(sqldb.String(60))
     songs = sqldb.relationship('UserSong', backref='user')
 
 
@@ -24,8 +26,9 @@ class UserSong(sqldb.Model):
     id = sqldb.Column(sqldb.Integer, primary_key=True)
     desc = sqldb.Column(sqldb.String(150)) #TODO: catch error if greater than 150 char
     saved = sqldb.Column(sqldb.Boolean)
-    date = sqldb.Column(sqldb.String(60))
-    period = sqldb.Column(sqldb.String(50))
+    date = sqldb.Column(MutableList.as_mutable(sqldb.ARRAY(sqldb.String(60))))
+    plays = sqldb.Column(sqldb.Integer)
+    period = sqldb.Column(sqldb.Enum('Spring', 'Summer', 'Fall', 'Winter', name='periodenum'))
     year = sqldb.Column(sqldb.Integer)
     song_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey('song.id'))
     user_id = sqldb.Column(sqldb.Integer, sqldb.ForeignKey('user.id'))
@@ -51,7 +54,7 @@ class Database:
     """
     Class to access database, read and write
     """
-    MIN_PLAYED = 3
+    MIN_PLAYED = 1
     def __init__(self, user):
         self.current_user = user
 
@@ -61,10 +64,11 @@ class Database:
         Returns:
 
         """
-        songs = sqldb.session.query(UserSong.period, UserSong.year, Song.name, Song.artist, Song.spotify_id, UserSong.desc,
+        songs = sqldb.session.query(UserSong.period, UserSong.year, Song.name, Song.artist, UserSong.id, UserSong.desc,
                                     Song.image, Song.link, Song.preview).join(Song, UserSong.song_id == Song.id)\
-            .with_parent(self.current_user).filter(UserSong.saved==True).order_by(UserSong.date.desc()).distinct().all()
-        # TODO: double check that ordering by date is ok
+            .with_parent(self.current_user).filter(UserSong.saved==True).order_by(UserSong.year.desc(), UserSong.period.asc()).distinct().all()
+
+        # todo: order such that period=none is at the top
         resp = []
         prevYear = -1
         years = -1
@@ -82,7 +86,7 @@ class Database:
 
     def get_period_songs(self, target_period, target_year):
         """
-        used in /travel
+        used in /discover
         Args:
             target_year:
             target_period:
@@ -94,17 +98,16 @@ class Database:
         filters = [UserSong.period == target_period, UserSong.year == target_year] if target_period else [
             UserSong.year == target_year] if target_year else []
 
-        songs = sqldb.session.query(func.count(UserSong.saved), Song.name, Song.artist, func.count(Song.spotify_id),
-                                    Song.spotify_id, Song.image, Song.link).join(Song, UserSong.song_id == Song.id)\
-            .with_parent(self.current_user).filter(*filters).group_by(Song.spotify_id, Song.name, Song.artist, Song.image, Song.link, UserSong.saved)\
-            .having((func.count(Song.spotify_id) > Database.MIN_PLAYED) | (UserSong.saved != None))\
-            .order_by(func.count(UserSong.saved).desc(), func.count(Song.spotify_id).desc()).all()
+        songs = sqldb.session.query(UserSong.saved, Song.name, Song.artist, UserSong.plays,
+                                    UserSong.id, Song.image, Song.link).join(Song, UserSong.song_id == Song.id)\
+            .with_parent(self.current_user).filter(*filters, (UserSong.plays >= Database.MIN_PLAYED) | (UserSong.saved != None))\
+            .order_by(UserSong.saved.desc(), UserSong.plays.desc()).all()
 
         return songs
 
-    def add_song(self, name, artist, desc, date, song_id, year, preview, image, link, period=None, saved=None):
+    def add_song(self, name, artist, desc, date, song_id, year, preview, image, link, plays=1, period=None, saved=None):
         """
-        Add played song to db. Checks if song exists in db, and if not, adds
+        Add played song to db. Checks if song exists in db, and if not, adds. Updates the users most recent song date
         Args:
             saved:
             name:
@@ -117,15 +120,28 @@ class Database:
         Returns:
 
         """
+        # create song obj if doesnt exist
         song = sqldb.session.query(Song).filter_by(spotify_id=song_id).first()
         if song is None:
             song = Song(name=name, artist=artist, preview=preview, image=image, link=link, spotify_id=song_id)
             sqldb.session.add(song)
             sqldb.session.commit()
 
-        songRecord = UserSong(desc=desc, user=self.current_user, date=date, period=period, year=year, saved=saved)
-        song.plays.append(songRecord)
-        sqldb.session.add(songRecord)
+        # include date into user_song entry
+        existingRecord = sqldb.session.query(UserSong).filter(UserSong.song_id == song.id,
+                          UserSong.year == year, UserSong.period == period).with_parent(self.current_user).first()
+        if existingRecord is None:
+            songRecord = UserSong(desc=desc, user=self.current_user, date=[date], plays=plays, period=period, year=year, saved=saved)
+            song.plays.append(songRecord)
+            sqldb.session.add(songRecord)
+            sqldb.session.commit()
+        else:
+            existingRecord.date.append(date)
+            existingRecord.plays += 1
+            sqldb.session.commit()
+
+        # update the most recent added date
+        self.current_user.recent = date if self.current_user.recent is None or date > self.current_user.recent else self.current_user.recent
         sqldb.session.commit()
 
     def get_most_recent(self):
@@ -134,13 +150,15 @@ class Database:
         Returns:
 
         """
-        recent = sqldb.session.query(UserSong).with_parent(self.current_user).order_by(UserSong.date.desc()).first().date
-        return recent
+        recent = sqldb.session.query(User.recent).filter_by(id=self.current_user.id).first()
+        try:
+            return recent[0]
+        except AttributeError:
+            return None
 
     def save_song(self, sid):
         try:
-            mark = sqldb.session.query(UserSong).join(Song, Song.id==UserSong.song_id).with_parent(self.current_user).\
-                filter(Song.spotify_id==sid).first()
+            mark = sqldb.session.query(UserSong).with_parent(self.current_user).filter(UserSong.id==sid).first()
             mark.saved = True if mark.saved is None else None  # toggles save
             sqldb.session.commit()
         except AttributeError:
@@ -164,7 +182,4 @@ class Database:
         sqldb.session.commit()
 
     def clear_db(self):
-        # todo: fix
-        sqldb.session.query(UserSong).delete()
-        sqldb.session.query(Song).delete()
-        sqldb.session.query(User).delete()
+        sqldb.drop_all()

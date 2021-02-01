@@ -1,6 +1,14 @@
 {% extends "logged_in.html" %}
 
 {% block content %}
+<div id="tokenExpiredModal" class="modal fade bd-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="mySmallModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+        <p>Your Spotify token has expired. Please click the button to refresh and try again.</p>
+        <a class="btn btn-light" id="account-toggle" href="{{url_for('login')}}">Refresh</a>
+    </div>
+  </div>
+</div>
 <div id="manual-add">
     <a type="button" data-toggle="modal" data-target="#addSongModal">
         <svg width="2em" height="2em" viewBox="0 0 16 16" class="bi bi-plus" fill="currentColor"

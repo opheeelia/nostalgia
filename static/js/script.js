@@ -20,8 +20,10 @@ function onSearch(){
     const query = document.getElementById('song-search').value;
     const parent = document.getElementById('search-results');
     fetch(`/search?query=${query}`).then(res => {
-        if (res.redirected){
-            return res;
+        if (res.status == 401){
+            // show modal asking to refresh
+            $('#addSongModal').modal('hide');
+            $('#tokenExpiredModal').modal('show');
         }
         return res.json();
     }).then(data => {
@@ -62,8 +64,12 @@ function onSearch(){
 }
 
 function onSave(id) {
-    // stop audio if playing
-    document.getElementById(`play-${id}`).pause();
+    try{
+        // stop audio if playing
+        document.getElementById(`play-${id}`).pause();
+    } catch (e) {
+        console.log(e);
+    }
     fetch(`/save?id=${id}`).then(res=> {
         const idsToScan = [`save-button-empty-${id}`, `save-button-filled-${id}`, `saved-tile-${id}`];
         //update it to be filled

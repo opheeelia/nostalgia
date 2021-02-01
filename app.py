@@ -11,15 +11,12 @@ from flask_dance.consumer.storage.sqla import SQLAlchemyStorage
 from sqlalchemy.orm.exc import NoResultFound, UnmappedInstanceError
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
-# from flask_cors import CORS, cross_origin
 from db import sqldb, User, OAuth, Database
 
 load_dotenv()
 app = Flask(__name__)
-# CORS(app, resources={r"/search": {"origins": "http://127.0.0.1:5000"}})
 app.secret_key = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 # conn = psycopg2.connect(os.environ.get('DATABASE_URL'), sslmode='require')
 sqldb.init_app(app)
@@ -101,25 +98,20 @@ def makeRequest(url):
 
 
 @app.route('/search', methods=['GET'])
-# @cross_origin(origin='127.0.0.1',headers=['Content- Type','Authorization'])
 def search():
     query = request.args.get('query')
     try:
         resp = spotify.get(f'/v1/search?q={query}&type=track&market=US').json()
-        # resp.headers["Access-Control-Allow-Origin"] = "*"
     except TokenExpiredError:
-        resp = make_response(redirect(url_for('spotify.login')))
-        # print(resp.headers)
-        resp.headers["Access-Control-Allow-Origin"] = "http://127.0.0.1:5000"
-        # return redirect(url_for('travel'))
+        return Response(status=401)
     return resp
 
 
 @app.route('/save')
 def save():
-    spotify_id = request.args.get('id')
+    sid = request.args.get('id')
     try:
-        dbInterface.save_song(spotify_id) # TODO: add error catching here
+        dbInterface.save_song(sid) # TODO: add error catching here
     except:
         return Response(status=500)
     return Response(status=200)
@@ -142,7 +134,7 @@ def add_song():
     date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(request.form.get('year'), defSeason, 1)  # 2020-08-26T00:25:10.291Z
 
     dbInterface.add_song(name=name, artist=artist, desc=desc, period=period, year=year, date=date, song_id=spotify_id,
-                         saved=True, image=image, preview=preview, link=link)
+                         saved=True, plays=Database.MIN_PLAYED, image=image, preview=preview, link=link)
     return redirect('/browse', code=302)
 
 
@@ -188,15 +180,15 @@ def get_and_update_db(most_recent):
 
 def topSongs():
     time_periods = ['medium_term', 'short_term' ] # , 'long_term'] todo: find where to add long term
+    added_songs = set()
     try:
-        top_songs = set()
         today = datetime.now()
         for term in time_periods:
             resp = spotify.get(f'/v1/me/top/tracks?time_range={term}').json()
             for song in resp['items']:
                 try:
                     song_id = song['id']
-                    if song_id not in top_songs:
+                    if song_id not in added_songs:
                         name = song['name']
                         artist = song['artists'][0]['name'] if len(song['artists']) <= 1 else song['artists'][0]['name'] + " and others"
                         image = song['album']['images'][-1]['url']
@@ -204,7 +196,7 @@ def topSongs():
                         preview = song['preview_url']
                         link = song['external_urls']['spotify']
                         date = '{}-{:02d}-{:02d}T00:00:00.000Z'.format(year, 1, 1)  # 2020-08-26T00:25:10.291Z
-                        top_songs.add(song_id)  # don't allow repeats
+                        added_songs.add(song_id)  # don't allow repeats
                         dbInterface.add_song(name=name, artist=artist, desc='', year=year, date=date,
                                          song_id=song_id, saved=True, image=image, preview=preview, link=link)
                 except AttributeError:
@@ -223,10 +215,10 @@ def topSongs():
                         if songResp:
                             for song in songResp['items']:
                                 try:
+                                    song_id = song['track']['id']
                                     popularity = int(song['track']['popularity'])
-                                    if popularity > 50:
+                                    if song_id not in added_songs and popularity > 50:
                                         name = song['track']['name']
-                                        song_id = song['track']['id']
                                         artist = song['track']['artists'][0]['name'] if len(song['track']['artists']) <= 1 else \
                                             song['track']['artists'][0]['name'] + " and others"
                                         image = song['track']['album']['images'][-1]['url']  # get link to smallest image
@@ -258,6 +250,8 @@ def discover():
         current_year = datetime.now().year
         try:
             most_recent = dbInterface.get_most_recent()
+            if most_recent is None:
+                most_recent = '0'
             # timestamp = datetime.strptime(most_recent, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp() use when API beta is over and fixed
         except (UnmappedInstanceError, AttributeError):
             most_recent = '0'
@@ -306,7 +300,7 @@ def home():
 
 
 if __name__ == "__main__":
-    # sqldb.init_app(app)
+    sqldb.init_app(app)
     migrate.init_app(app, sqldb)
     with app.app_context():
         sqldb.create_all()
